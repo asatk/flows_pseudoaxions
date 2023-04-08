@@ -8,7 +8,7 @@ import json
 import numpy as np
 # import ROOT
 
-import defs_flows as defs
+import defs as defs
 
 def sample_real_gaussian(n_samples: int, labels: np.ndarray, gaus_points: np.ndarray, cov_mtxs: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     '''
@@ -21,11 +21,12 @@ def sample_real_gaussian(n_samples: int, labels: np.ndarray, gaus_points: np.nda
     '''
 
     dim = cov_mtxs[0].shape[0]
+    nvars = labels.shape[1]
 
     # n_samples samples from 'dim'-dimension gaussian
     samples = np.empty((0, dim), dtype=float)
     # a labels corresponding to each sample taken
-    sampled_labels = np.empty((0,), dtype=float)
+    sampled_labels = np.empty((0,nvars), dtype=float)
 
     for i in range(len(gaus_points)):
         point_i = gaus_points[i]
@@ -35,17 +36,23 @@ def sample_real_gaussian(n_samples: int, labels: np.ndarray, gaus_points: np.nda
         samples_i = np.random.multivariate_normal(point_i, cov_mtx_i, size=n_samples)
         samples = np.concatenate((samples, samples_i), axis=0)
 
-        sampled_labels_i = np.ones(n_samples) * label_i
+        sampled_labels_i = np.repeat(label_i, n_samples).reshape(nvars, -1).T
         sampled_labels = np.concatenate((sampled_labels, sampled_labels_i), axis=0)
 
     return samples, sampled_labels
 
 
 def train_labels_circle(n_train: int) -> np.ndarray:
-    return np.linspace(0, 2*np.pi, n_train, endpoint=False)
+    return np.array([np.linspace(0, 2*np.pi, n_train, endpoint=False)]).T
 
 def train_labels_line_1d(n_train: int) -> np.ndarray:
-    return np.linspace(defs.xmin, defs.xmax, n_train + 1, endpoint=False)[:-1] + (defs.xmax - defs.xmin) / ((n_train + 1))
+    return np.array([np.add(np.linspace(defs.xmin, defs.xmax, n_train + 1, endpoint=False)[:-1], (defs.xmax - defs.xmin) / (n_train + 1))]).T
+
+def train_labels_grid_2d(ngausx: int, ngausy: int) -> np.ndarray:
+    xax = np.linspace(defs.xmin, defs.xmax, ngausx + 1, endpoint=False)[:-1] + (defs.xmax - defs.xmin) / (ngausx + 1)
+    yax = np.linspace(defs.ymin, defs.ymax, ngausy + 1, endpoint=False)[:-1] + (defs.ymax - defs.ymin) / (ngausy + 1)
+    x, y = np.meshgrid(xax, yax)
+    return np.array([x.ravel(), y.ravel()]).T
 
 def train_labels_psuedo_phi(n_train: int) -> np.ndarray:
     return np.linspace(defs.phi_min, defs.phi_max, n_train, endpoint=False)
@@ -65,6 +72,14 @@ def normalize_labels_line_1d(labels: np.ndarray) -> np.ndarray:
 def recover_labels_line_1d(labels: np.ndarray) -> np.ndarray:
     return np.add(np.multiply(labels, (defs.xmax - defs.xmin)), defs.xmin)
 
+def normalize_labels_grid_2d(labels: np.ndarray) -> np.ndarray:
+    return np.divide(np.subtract(labels, [defs.xmin, defs.ymin]),
+            np.max([defs.xmax - defs.xmin, defs.ymax - defs.ymin]))
+
+def recover_labels_grid_2d(labels: np.ndarray) -> np.ndarray:
+    return np.add(np.multiply(labels,
+            np.max([defs.xmax - defs.xmin, defs.ymax - defs.ymin])), [defs.xmin, defs.ymin])
+
 def normalize_labels_pseudo_phi(labels: np.ndarray) -> np.ndarray:
     return np.divide(np.subtract(labels, defs.phi_min), (defs.phi_max - defs.phi_min))
 
@@ -81,12 +96,19 @@ def gaus_point_circle(labels: np.ndarray, radius: float) -> np.ndarray:
     return np.multiply([np.sin(labels), np.cos(labels)], radius).T
 
 def gaus_point_line_1d(labels: np.ndarray, yval: float) -> np.ndarray:
-    return np.stack((labels, yval * np.ones(len(labels))), axis=1)
+    return np.concatenate((labels, np.array([np.repeat(yval, len(labels))]).T), axis=1)
+
+def gaus_point_grid_2d(labels: np.ndarray) -> np.ndarray:
+    # return np.stack(labels, axis=1)
+    return labels
 
 def plot_lims_circle(radius: float) -> np.ndarray:
     return np.multiply(np.ones((2,2)), radius)
 
 def plot_lims_line_1d() -> np.ndarray:
+    return np.array([[defs.xmin, defs.xmax], [defs.ymin, defs.ymax]])
+
+def plot_lims_grid() -> np.ndarray:
     return np.array([[defs.xmin, defs.xmax], [defs.ymin, defs.ymax]])
 
 def plot_lims_line_pseudo() -> np.ndarray:
@@ -104,7 +126,7 @@ def cov_skew(cov11: float, cov12: float, cov21: float=None, cov22: float=None) -
         cov22 = cov11
     return np.power(np.array([[cov11, cov12],[cov21, cov22]]), 2.)
     
-def cov_change_const(labels: np.ndarray, cov: np.ndarray) -> np.ndarray:
+def cov_change_none(labels: np.ndarray, cov: np.ndarray) -> np.ndarray:
     return np.repeat([cov], len(labels), axis=0)
 
 def cov_change_radial(labels: np.ndarray, cov: np.ndarray):

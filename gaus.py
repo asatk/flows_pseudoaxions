@@ -1,8 +1,8 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-import defs_flows as defs
-import train_utils_flows as myutils
+import defs as defs
+import utils as myutils
 
 # make gaussian sample data
 n_gaus_train = 2
@@ -12,9 +12,14 @@ yval = 0.5
 
 labels = myutils.normalize_labels_line_1d(
     myutils.train_labels_line_1d(n_gaus_train))
-gaus_covs = myutils.cov_change_const(labels,
+
+print(labels)
+
+gaus_covs = myutils.cov_change_none(labels,
     myutils.cov_xy(gaus_width))
 gaus_pts = myutils.gaus_point_line_1d(labels, yval)
+
+print(gaus_pts)
 
 gaussians, gaussian_labels = myutils.sample_real_gaussian(n_samples, labels, gaus_pts, gaus_covs)
 
