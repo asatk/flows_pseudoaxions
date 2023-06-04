@@ -1,6 +1,9 @@
 /__pycache__/
 /.ipynb_checkpoints/
 /bad/
+/data/
+/model/
+/output/
 /root/
 *.code-workspace
 *.h5

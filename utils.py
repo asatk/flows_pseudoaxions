@@ -4,9 +4,9 @@ Definitions of utility functions for training CCGAN.
 Author: Anthony Atkinson
 '''
 
-import json
 import numpy as np
-# import ROOT
+import os
+import tensorflow as tf
 
 import defs as defs
 
@@ -60,6 +60,14 @@ def train_labels_psuedo_phi(n_train: int) -> np.ndarray:
 def train_labels_psuedo_omega(n_train: int) -> np.ndarray:
     return np.linspace(defs.omega_min, defs.omega_max, n_train, endpoint=False)
 
+def train_labels_pseudo_2d(ndistx: int, ndisty: int) -> np.ndarray:
+    xax = np.linspace(defs.phi_min, defs.omega_max, ndistx + 1, endpoint=False)[:-1] + \
+        (defs.phi_max - defs.phi_min) / (ndistx + 1)
+    yax = np.linspace(defs.omega_min, defs.omega_max, ndisty + 1, endpoint=False)[:-1] + \
+        (defs.omega_max - defs.omega_min) / (ndisty + 1)
+    x, y = np.meshgrid(xax, yax)
+    return np.array([x.ravel(), y.ravel()]).T
+
 def normalize_labels_circle(labels: np.ndarray) -> np.ndarray:
     return np.divide(labels, 2*np.pi)
 
@@ -92,13 +100,21 @@ def normalize_labels_pseudo_omega(labels: np.ndarray) -> np.ndarray:
 def recover_labels_pseudo_omega(labels: np.ndarray) -> np.ndarray:
     return np.add(np.multiply(labels, (defs.omega_max - defs.omega_min)), defs.omega_min)
 
-def gaus_point_circle(labels: np.ndarray, radius: float) -> np.ndarray:
+def normalize_labels_pseudo_2d(labels: np.ndarray) -> np.ndarray:
+    return np.divide(np.subtract(labels, [defs.phi_min, defs.omega_min]),
+            np.max([defs.phi_max - defs.phi_min, defs.omega_max - defs.omega_min]))
+
+def recover_labels_pseudo_2d(labels: np.ndarray) -> np.ndarray:
+    return np.add(np.multiply(labels,
+            np.max([defs.phi_max - defs.phi_min, defs.omega_max - defs.omega_min])), [defs.phi_min, defs.omega_min])
+
+def dist_center_circle(labels: np.ndarray, radius: float) -> np.ndarray:
     return np.multiply([np.sin(labels), np.cos(labels)], radius).T
 
-def gaus_point_line_1d(labels: np.ndarray, yval: float) -> np.ndarray:
+def dist_center_line_1d(labels: np.ndarray, yval: float) -> np.ndarray:
     return np.concatenate((labels, np.array([np.repeat(yval, len(labels))]).T), axis=1)
 
-def gaus_point_grid_2d(labels: np.ndarray) -> np.ndarray:
+def dist_center_grid_2d(labels: np.ndarray) -> np.ndarray:
     # return np.stack(labels, axis=1)
     return labels
 
@@ -144,3 +160,36 @@ def cov_change_skew(labels: np.ndarray, cov: np.ndarray) -> list[np.ndarray]:
     '''
     n_labels = len(labels)
     return [np.dot(cov, np.array([[np.cos(i * np.pi/n_labels), np.sin(i * np.pi/n_labels)], [-np.sin(i * np.pi/n_labels), np.cos(i * np.pi/n_labels)]])) for i in range(n_labels)]
+
+def namefile(dirname: str, name: str, isdir=False, ext: str=None):
+
+    if isdir or ext is None:
+        ext = ""
+
+    d = os.listdir(dirname)
+    i = 1
+    f = name + ext
+    
+    while f in d:
+        f = "%s_%i%s"%(name, i, ext)
+        i += 1
+
+    f = dirname + f
+
+    if isdir:
+        f += '/'
+
+    return f
+    
+class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
+    def __init__(self, verbose, epoch_interval, epoch_end, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.default_verbose = verbose
+        self.epoch_interval = epoch_interval
+        self.epoch_end = epoch_end
+    
+    def on_epoch_begin(self, epoch, *args, **kwargs):
+        self.verbose = (
+                0 if (epoch + 1) % self.epoch_interval != 0 and (epoch + 1) != self.epoch_end
+                else self.default_verbose)
+        super().on_epoch_begin(epoch, *args, **kwargs)
