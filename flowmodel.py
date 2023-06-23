@@ -2,11 +2,11 @@ from typing import Any
 import tensorflow as tf
 from tensorflow import keras as tfk
 import tensorflow_probability as tfp
-# from tensorflow_probability import distributions as tfd
-# from tensorflow_probability import bijectors as tfb
-tfd = tfp.distributions
-tfb = tfp.bijectors
+from tensorflow_probability import distributions as tfd
+from tensorflow_probability import bijectors as tfb
 import numpy as np
+
+import defs
 
 # This is simply a copy of the original "AutoregressiveNetwork" class in tfp.bijectors. The only reason we need to do this is that we want to apply a tanh
 # on the output log-scale when the Network is called. This allows for better regularization and helps with "inf" and "nan" values that otherwise would
@@ -48,11 +48,13 @@ class Made(tfb.AutoregressiveNetwork):
                        "hidden_units": self.hidden_units,
                        "activation": self.activation,
                        "name": self.name})
-        # config.update({"loss": lossfn})
         
         return config
 
-def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=None, num_made=10):
+def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=None, num_made=10) -> tuple[tfd.TransformedDistribution, list[Any]]:
+
+    if cond_event_shape is None:
+        cond_event_shape = (num_inputs, )
     
     permutation = tfb.Permute(np.arange(0, num_inputs)[::-1])
     if len(made_list) == 0:
@@ -66,13 +68,10 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
     else:
         made_list_temp = []
         for i, made in enumerate(made_list):
-            # print(i)
             made_list_temp.append(tfb.MaskedAutoregressiveFlow(shift_and_log_scale_fn=made, name=f"maf_{i}"))
             made_list_temp.append(permutation)
 
         made_list = made_list_temp
-
-    # print(made_list)
 
     # make bijection from made layers; remove final permute layer
     made_chain = tfb.Chain(list(reversed(made_list[:-1])))
@@ -84,12 +83,10 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
     
     return distribution, made_list
 
-def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=128, base_lr=1.0e-3, end_lr=1.0e-4, return_layer_list=False) -> tuple[tfk.Model, Any, list[Any]]:
-
-    cond_event_shape = (num_cond_inputs,)
+def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=128) -> tuple[tfk.Model, Any]:
 
     made_list = []
-    distribution, made_list = build_distribution(made_list, num_inputs, made_layers=made_layers, cond_event_shape=cond_event_shape, num_made=num_made)
+    distribution, made_list = build_distribution(made_list, num_inputs, made_layers=made_layers, cond_event_shape=(num_cond_inputs, ), num_made=num_made)
     
     x_ = tfk.layers.Input(shape=(num_inputs,), name="aux_input")
     input_list = [x_]
@@ -101,19 +98,15 @@ def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=12
     for i in range(num_made):
         current_kwargs[f"maf_{i}"] = {'conditional_input' : c_}
     
-  
     log_prob_ = distribution.log_prob(x_, bijector_kwargs=current_kwargs)
   
     model = tfk.Model(input_list, log_prob_)
     max_epochs = 100  # maximum number of epochs of the training
-    learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(base_lr, max_epochs, end_lr, power=0.5)
+    learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(defs.base_lr, max_epochs, defs.end_lr, power=0.5)
     model.compile(optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
                 loss=lossfn)
-  
-    if return_layer_list:
-        return model, distribution, made_list
-    else:
-        return model, distribution
+
+    return model, distribution
 
 def lossfn(x, logprob):
     return -logprob

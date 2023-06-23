@@ -1,22 +1,28 @@
 import numpy as np
 import math
+# import matplotlib as mpl
 from matplotlib import pyplot as plt
+import os
 from scipy.stats import chisquare
-from scipy.special import erf
 
 import defs
 
+# os.environ["QT_API"] = "PySide6"
+# mpl.use('qtagg')
+
 # training data plot
 def plot_train(data, labels, path):
-    fig = plt.figure(figsize=(10,10))
+    fig = plt.figure(figsize=(10.0,10.0))
     ax = fig.add_subplot(111)
 
     ax.scatter(data[:, 0], data[:, 1], s=25, color='darkgreen', alpha=0.4, label='training data')
-    ax.scatter(labels[:, 0], labels[:, 1], s=25, color='red')
+    # ax.scatter(labels[:, 0], labels[:, 1], s=25, color='red')
     fig.legend(loc=1, fontsize=20)
     ax.grid(visible=True)
     ax.set_xlim((defs.xmin, defs.xmax))
     ax.set_ylim((defs.ymin, defs.ymax))
+    # ax.set_xlim((defs.xmin, np.max(data[:, 0])))
+    # ax.set_ylim((defs.ymin, np.max(data[:, 1])))
     ax.set_xlabel("X", fontsize=15)
     ax.set_ylabel("Y", fontsize=15)
     ax.set_title("Flow Training Samples", fontsize=25)
@@ -65,11 +71,11 @@ def gaussinity(samples, labels, outputpath=None, name=None):
     if name is None:
         name = 'DATA'
 
-    uniquelabels = np.unique(labels)
+    uniquelabels, uniqueinverse = np.unique(labels, return_inverse=True)
 
-    for label in uniquelabels:
-        sample = samples[np.where(labels == label)[0]]
-        label = labels[i,:]
+    for i, label in enumerate(uniquelabels):
+        sample = samples[uniqueinverse == i]
+        # label = labels[i,:]
 
         mean = np.mean(sample, axis=0)
         cov = np.cov(sample.T)
