@@ -1,6 +1,6 @@
 from datetime import datetime
 import numpy as np
-import os
+from os import mkdir
 
 import defs
 import utils as myutils
@@ -38,25 +38,25 @@ def test_samples(distribution, mode=defs.GRID):
 
     return gen_data, gen_labels
 
-def plot(labels, testlabels, mode=defs.GRID):
-    ###---PLOT TRAINING AND GENERATED SAMPLES------###
+# def plot(labels, testlabels, mode=defs.GRID):
+#     ###---PLOT TRAINING AND GENERATED SAMPLES------###
 
-    # prep data for plotting
-    uniquelabels = np.unique(labels, axis=0)
-    if mode == defs.LINE:
-        plotlabels = np.array([uniquelabels, np.ones(defs.ngaus) * defs.yval])
-        linevals = np.ones(shape=uniquelabels.shape) * defs.yval
-        plottestlabels = np.stack((testlabels, linevals), axis=1)
-    elif mode == defs.GRID:
-        plotlabels = labels
-        plottestlabels = testlabels
+#     # prep data for plotting
+#     uniquelabels = np.unique(labels, axis=0)
+#     if mode == defs.LINE:
+#         plotlabels = np.array([uniquelabels, np.ones(defs.ngaus) * defs.yval])
+#         linevals = np.ones(shape=uniquelabels.shape) * defs.yval
+#         plottestlabels = np.stack((testlabels, linevals), axis=1)
+#     elif mode == defs.GRID:
+#         plotlabels = labels
+#         plottestlabels = testlabels
 
-    outputdirname = 'run_%s'%(flowrunname)
-    outputdir = myutils.namefile('output/', outputdirname, isdir=True)
-    mkdir(outputdir)
-    outputname = 'gaus2D_%02i-%02i_GEN'%(defs.ngausx, defs.ngausy)
-    outputpath = myutils.namefile(outputdir, outputname, ext=".png")
-    trainfigname = 'gaus2D_%02i-%02i_TRN'%(defs.ngausx, defs.ngausy)
-    trainfigpath = myutils.namefile(outputdir, trainfigname, ext=".png")
-    autils.plot_train(samples, plotlabels, trainfigpath)
-    autils.plot_gen(samples, samples_gen, plotlabels, plottestlabels, outputpath)
+#     outputdirname = 'run_%s'%(flowrunname)
+#     outputdir = myutils.namefile('output/', outputdirname, isdir=True)
+#     mkdir(outputdir)
+#     outputname = 'gaus2D_%02i-%02i_GEN'%(defs.ngausx, defs.ngausy)
+#     outputpath = myutils.namefile(outputdir, outputname, ext=".png")
+#     trainfigname = 'gaus2D_%02i-%02i_TRN'%(defs.ngausx, defs.ngausy)
+#     trainfigpath = myutils.namefile(outputdir, trainfigname, ext=".png")
+#     autils.plot_train(samples, plotlabels, trainfigpath)
+#     autils.plot_gen(samples, samples_gen, plotlabels, plottestlabels, outputpath)

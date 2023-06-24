@@ -1,14 +1,10 @@
 import numpy as np
 import math
-# import matplotlib as mpl
 from matplotlib import pyplot as plt
 import os
 from scipy.stats import chisquare
 
 import defs
-
-# os.environ["QT_API"] = "PySide6"
-# mpl.use('qtagg')
 
 # training data plot
 def plot_train(data, labels, path):
@@ -16,7 +12,7 @@ def plot_train(data, labels, path):
     ax = fig.add_subplot(111)
 
     ax.scatter(data[:, 0], data[:, 1], s=25, color='darkgreen', alpha=0.4, label='training data')
-    # ax.scatter(labels[:, 0], labels[:, 1], s=25, color='red')
+    ax.scatter(labels[:, 0], labels[:, 1], s=25, color='red')
     fig.legend(loc=1, fontsize=20)
     ax.grid(visible=True)
     ax.set_xlim((defs.xmin, defs.xmax))

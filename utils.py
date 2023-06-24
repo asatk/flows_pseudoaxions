@@ -1,5 +1,5 @@
 '''
-Definitions of utility functions for training CCGAN.
+Definitions of utility functions for training normalizing flows.
 
 Author: Anthony Atkinson
 '''

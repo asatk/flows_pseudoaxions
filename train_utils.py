@@ -30,7 +30,13 @@ def makedata(mode, datarunname=None, rootdatapath=None):
     if datarunname is None:
         datarunname = datetime.today().date()
 
+    if mode == defs.ROOT and rootdatapath is None:
+        print("no root data path provided")
+        exit()
+
     datadir = "data/"
+
+    # >>>> NORMALIZE DATA!!! ONLY NORMALIZING LABELS
 
     if mode == defs.LINE:
         # assign the 1D labels for each gaussian
@@ -49,8 +55,10 @@ def makedata(mode, datarunname=None, rootdatapath=None):
 
         labelfile = 'gaussian_labels_%s_%02i'%(datarunname, defs.ngaus)
         datafile = 'gaussians_%s_%02i'%(datarunname, defs.ngaus)
+        normdatafile = 'gaussians_norm_%s_%02i'%(datarunname, defs.ngaus)
         labelpath = myutils.namefile(datadir, labelfile, ext=".npy")
         datapath = myutils.namefile(datadir, datafile, ext=".npy")
+        normdatapath = myutils.namefile(datadir, normdatafile, ext=".npy")
     
     elif mode == defs.GRID:
 
@@ -68,23 +76,33 @@ def makedata(mode, datarunname=None, rootdatapath=None):
 
         labelfile = 'gaussian_labels_%s_%02ix%02i'%(datarunname, defs.ngausx, defs.ngausy)
         datafile = 'gaussians_%s_%02ix%02i'%(datarunname, defs.ngausx, defs.ngausy)
+        normdatafile = 'gaussians_norm_%s_%02ix%02i'%(datarunname, defs.ngausx, defs.ngausy)
         labelpath = myutils.namefile(datadir, labelfile, ext=".npy")
         datapath = myutils.namefile(datadir, datafile, ext=".npy")
+        normdatapath = myutils.namefile(datadir, normdatafile, ext=".npy")
 
     elif mode == defs.ROOT:
         samples, labels = _loadallroot(rootdatapath)
 
-        labelfile = 'root_labels_%s_%02ix%02i'%(datarunname, defs.ndistx, defs.ndisty)
-        datafile = 'root_%s_%02ix%02i'%(datarunname, defs.ndistx, defs.ndisty)
+        labelfile = 'root_labels_%s'%(datarunname)
+        datafile = 'root_%s'%(datarunname)
+        normdatafile = 'root_norm_%s'%(datarunname)
         labelpath = myutils.namefile(datadir, labelfile, ext=".npy")
         datapath = myutils.namefile(datadir, datafile, ext=".npy")
+        normdatapath = myutils.namefile(datadir, normdatafile, ext=".npy")
     
     else:
         print("this type of training data generation is not implemented")
         return None
     
+    # normalize data
+    mean = np.mean(samples, axis=0)
+    std = np.std(samples, axis=0)
+    samples_std = (samples - mean) / std
+    
     np.save(labelpath, labels)
-    np.save(datapath, samples)
+    np.save(datapath, samples_std)
+    np.save(normdatapath, np.array([mean, std]))
     return samples, labels
 
 def _loadallroot(datadir):
@@ -102,20 +120,6 @@ def _loadallroot(datadir):
 
     return samples, labels
 
-def _cutdata(i, omega, labelphi, labelomega, pt, ptidx, omegaidx):
-    # index and cut criterion
-    # for i in range(len(omega)):
-    if pt[i][ptidx[i]] > 220:
-        omega[i] = omega[i][omegaidx[i]]
-        labelphi[i] = labelphi[i][0]
-        labelomega[i] = labelomega[i][0]
-    else:
-        omega[i] = 0
-    if pt[ptidx] > 220:
-        return (omega[omegaidx], labelphi[0], labelomega[0])
-    else:
-        return None
-
 def _loadoneroot(rootdatapath):
     if os.stat(rootdatapath).st_size == 0:
         print("--- ^ empty file ^ ---")
@@ -123,12 +127,16 @@ def _loadoneroot(rootdatapath):
         labels = np.empty((0, 2))
         return samples, labels
 
+    # load data
     datafile = up.open(rootdatapath)
     events = datafile["Events;1"]
 
+    # fetch desired columns
     arrs = events.arrays([phistr, omegastr, omegaidxstr, ptstr, ptidxstr,
                           labelphistr, labelomegastr], cut=cutstr, library="np")
 
+    
+    # cut out events that don't have a valid omega/pt to index
     omegaidxarr = arrs[omegaidxstr]
     ptidxarr = arrs[ptidxstr]
 
@@ -143,12 +151,11 @@ def _loadoneroot(rootdatapath):
     labelphi = arrs[labelphistr][idxcutarr]
     labelomega = arrs[labelomegastr][idxcutarr] 
 
-    # print(len(omega))
-
     omega_temp = np.empty_like(omega, dtype=np.float32)
     labelphi_temp = np.empty_like(labelphi, dtype=np.float32)
     labelomega_temp = np.empty_like(labelomega, dtype=np.float32)
 
+    # perform cut and extract correct element with index
     for i in range(len(omega)):
         if pt[i][ptidx[i]] > 220:
             omega_temp[i] = omega[i][omegaidx[i]]
@@ -163,25 +170,17 @@ def _loadoneroot(rootdatapath):
     newlabelphi = labelphi_temp[cutarr].copy()
     newlabelomega = labelomega_temp[cutarr].copy()
 
-    # print(len(newomega))
-
-    # print(np.where(cutarr))
-    # print(newphi)
-    # print(newomega)
-    # print(newlabelphi)
-    # print(newlabelomega)
-
-    # phi, omega, labelphi, labelomega = data
-
-    samples = np.stack((newphi, newomega), axis=1)
-    labels = np.stack((newlabelphi, newlabelomega), axis=1)
+    # for 10k dataset, this is 1.1%
+    if (len(newphi) < 110):
+        samples = np.empty((0, 2), dtype=np.float32)
+        labels = np.empty((0, 2), dtype=np.float32)
+    
+    # compile samples and labels array
+    else:
+        samples = np.stack((newphi, newomega), axis=1)
+        labels = np.stack((newlabelphi, newlabelomega), axis=1)
 
     datafile.close()
-
-    # print(samples)
-    # print(labels)
-
-    # exit()
 
     return samples, labels
 
