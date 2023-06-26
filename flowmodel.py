@@ -63,7 +63,7 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
                 shift_and_log_scale_fn=Made(params=2, hidden_units=[made_layers], event_shape=(num_inputs,), conditional=True,
                                             conditional_event_shape=cond_event_shape, activation='relu', name=f"made_{i}"), name=f"maf_{i}"))
     
-            #made_list.append(tfb.BatchNormalization())
+            # made_list.append(tfb.BatchNormalization())
             made_list.append(permutation)
     else:
         made_list_temp = []
@@ -83,7 +83,7 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
     
     return distribution, made_list
 
-def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=128) -> tuple[tfk.Model, Any]:
+def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=128) -> tuple[tfk.Model, Any, list[Any]]:
 
     made_list = []
     distribution, made_list = build_distribution(made_list, num_inputs, made_layers=made_layers, cond_event_shape=(num_cond_inputs, ), num_made=num_made)
@@ -106,7 +106,7 @@ def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=12
     model.compile(optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
                 loss=lossfn)
 
-    return model, distribution
+    return model, distribution, made_list
 
 def lossfn(x, logprob):
     return -logprob

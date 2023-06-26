@@ -3,6 +3,19 @@ This module holds definitions of (hyper)parameters used to define the
 geometry and data of the problem being interpolated.
 """
 
+# Paths
+data_dir = "data"
+model_dir = "model"
+output_dir = "output"
+root_dir = "root/10x10box_10k_jun2023"
+run_name = "06-26_BOX02"
+flow_path = model_dir + "/" + run_name
+
+# Run flags
+newdata = True
+newmodel = True
+newanalysis = False
+
 ### --- Network/Run parameters --- ###
 seed = 0xace1ace1ace1ace1 #seed for RNG
 nepochs = 200            #num epochs for training flow
@@ -17,11 +30,11 @@ end_lr =  1.0e-4
 ### --- Geometry/Problem Parameters --- ###
 # Use-case Parameters
 phi_min = 0.            #min phi (x) val in GeV
-phi_max = 6000.         #max phi (x) val in GeV
-phi_bins = 60          #bins in phi (x)
+phi_max = 7000.         #max phi (x) val in GeV
+phi_bins = 70          #bins in phi (x)
 omega_min = 0.          #min omega (y) val in GeV
-omega_max = 10.         #max omega (y) val in GeV
-omega_bins = 100        #bins in omega (y)
+omega_max = 15.         #max omega (y) val in GeV
+omega_bins = 150        #bins in omega (y)
 ndistx = 10
 ndisty = 10
 

@@ -6,6 +6,9 @@ from scipy.stats import chisquare
 
 import defs
 
+def analyze():
+    pass
+
 # training data plot
 def plot_train(data, labels, path):
     fig = plt.figure(figsize=(10.0,10.0))
@@ -17,8 +20,6 @@ def plot_train(data, labels, path):
     ax.grid(visible=True)
     ax.set_xlim((defs.xmin, defs.xmax))
     ax.set_ylim((defs.ymin, defs.ymax))
-    # ax.set_xlim((defs.xmin, np.max(data[:, 0])))
-    # ax.set_ylim((defs.ymin, np.max(data[:, 1])))
     ax.set_xlabel("X", fontsize=15)
     ax.set_ylabel("Y", fontsize=15)
     ax.set_title("Flow Training Samples", fontsize=25)

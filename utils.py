@@ -3,35 +3,45 @@ Definitions of utility functions for training normalizing flows.
 
 Author: Anthony Atkinson
 '''
-
+# import argparse
 from datetime import datetime
-# import numpy as np
 import os
 import tensorflow as tf
 
-# import defs as defs
+import defs
 
-def namefile(dirname: str, name: str, isdir=False, ext: str=None):
+def init():
 
-    if isdir or ext is None:
-        ext = ""
+    model_dir = defs.model_dir
+    flow_path = defs.flow_path
 
-    d = os.listdir(dirname)
-    i = 0
+    if not (os.path.isdir(defs.data_dir) and os.path.isdir(model_dir) \
+            and os.path.isdir(defs.output_dir) and os.path.isdir(defs.root_dir)):
+        print("invalid directories")
+        exit()
     
-    f = "%s_run%02i%s"%(name, i, ext)
-    
-    while f in d:
-        f = "%s_run%02i%s"%(name, i, ext)
-        i += 1
+    # run_num = 0
+    # flowname = datetime.today().date()
+    # flowpath = "/".join([model_dir,'flow_%s_run%02i'%(flowname, run_num)])
 
-    f = dirname + f
+    # Training a new model where model dir already exists
+    if os.path.isdir(flow_path) and defs.newmodel:
+        c = " "
+        while c not in ['y', 'N']:
+            c = input("would you like to replace the model saved at %s? [y/N]"%(flow_path))
+        
+        if c == 'N':
+            exit()
+        else:
+            print("Removing the previous model at %s...")
+            os.rmdir(flow_path)
 
-    if isdir:
-        f += '/'
+    # Loading a model from a dir that does not exist
+    elif not (os.path.isdir(flow_path) or defs.newmodel):
+            print("saved model directory does not exist")
+            exit()
 
-    return f
-    
+# Progress bar which outputs at certain intervals only
 class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
     def __init__(self, verbose, epoch_interval, epoch_end, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -43,6 +53,6 @@ class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
         self.verbose = (
                 0 if (epoch + 1) % self.epoch_interval != 0 and (epoch + 1) != self.epoch_end
                 else self.default_verbose)
-        if (epoch + 1) % self.epoch_interval != 0:
+        if (epoch + 1) % self.epoch_interval == 0:
             print("epoch begin: ", datetime.now())
         super().on_epoch_begin(epoch, *args, **kwargs)
