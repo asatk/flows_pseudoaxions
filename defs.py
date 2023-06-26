@@ -3,64 +3,67 @@ This module holds definitions of (hyper)parameters used to define the
 geometry and data of the problem being interpolated.
 """
 
+### --- RUN INFO --- ###
 # Paths
 data_dir = "data"
 model_dir = "model"
 output_dir = "output"
 root_dir = "root/10x10box_10k_jun2023"
-run_name = "06-26_BOX02"
-flow_path = model_dir + "/" + run_name
+flow_name = "06-26_BOX03"
+data_name = "06-26_BOX02"
+
+flow_path = model_dir + "/" + flow_name
+samples_path = data_dir + "/" + data_name + "_samples.npy"
+labels_path = data_dir + "/" + data_name +"_labels.npy"
+normdata_path = data_dir + "/" + data_name + "_normdata.npy"
 
 # Run flags
-newdata = True
+newdata = False
 newmodel = True
 newanalysis = False
 
-### --- Network/Run parameters --- ###
-seed = 0xace1ace1ace1ace1 #seed for RNG
-nepochs = 200            #num epochs for training flow
-epoch_resume = 0        #num iterations to resume training on a trained flow model
-epoch_save = 50        #num iterations to save GAN state
-nmade =  10         # number of MADE blocks in masked autoregressive flow
-ndim = 2             #dimensions of the data, i.e., 2 for 2-D problem - also referred to as latent dimension of GAN? understand what that means
-ndim_label = 2          #dimensions of the labels
-base_lr = 1.0e-3               #learning rate: keep btwn [1e-3, 1e-6]
-end_lr =  1.0e-4
+### --- MODE CONSTANTS --- ###
+LINE = 0    #2-D gaussians along a line
+GRID = 1    #2-D gaussians in a grid
+ROOT = 2    #2-D distributions in a grid, usuall
+mode = ROOT
+
+### --- Network Hyperparameters --- ###
+seed = 0xace1ace1ace1ace1   #seed for RNG
+nepochs = 500               #iterations to train flow
+epoch_resume = 0            #iterations to resume training a trained model
+epoch_save = 50             #iterations to save flow state in checkpoints
+nmade = 10                  #MADE blocks in masked autoregressive flow
+ndim = 2                    #dimensions of the sample data
+ndim_label = 2              #dimensions of the conditional data (labels)
+base_lr = 1.0e-3            #learning rate range: keep btwn [1e-3, 1e-6]
+end_lr = 1.0e-4             #ditto
+batch_size = 32            #num samples in each epoch's minibatches
+ngen = 200                  #num samples for analysis/generation
 
 ### --- Geometry/Problem Parameters --- ###
 # Use-case Parameters
-phi_min = 0.            #min phi (x) val in GeV
-phi_max = 7000.         #max phi (x) val in GeV
-phi_bins = 70          #bins in phi (x)
-omega_min = 0.          #min omega (y) val in GeV
-omega_max = 15.         #max omega (y) val in GeV
-omega_bins = 150        #bins in omega (y)
-ndistx = 10
-ndisty = 10
+phi_min = 0.                #min phi (x) val in GeV
+phi_max = 7000.             #max phi (x) val in GeV
+phi_bins = 70               #bins in phi (x)
+omega_min = 0.              #min omega (y) val in GeV
+omega_max = 15.             #max omega (y) val in GeV
+omega_bins = 150            #bins in omega (y)
 
-# Gaussian Line Parameters
-ngaus = 5               #num gaussians from which training data is created
-ngausx = 10
-ngausy = 10
-ngausplot = 5           #num gaussians to plot/use in analysis
-nsamp = 1000           #num samples in training gaussians
-ngen = 1000             # nump samples for analysis/generation
-sigma_gaus = 0.025     #std dev of training gaussians
-val = 0.5               #specific value used for gaussian problems (circ/line)
-xmin = 0.               #min xval of grid
-xmax = 1.               #max xval of grid
-xbins = 200             #bins in x
-ymin = 0.               #min yval of grid
-ymax = 1.               #max yval of grid
-ybins = 200             #bins in y
-xcov_change_linear_max_factor = 4.   #max change in growth in x
-ycov_change_linear_max_factor = 2.   #max change in growth in y
-cov_change_skew_rate = 2.0            #radian angle rotation
+# Gaussian Parameters
+ngausx = 10                 #gaussians in x dimension
+ngausy = 10                 #gaussians in y dimension
+nsamp = 1000                #num samples in training gaussians
+sigma_gaus = 0.025          #std dev/width of training gaussians
+val = 0.5                   #special value used for circ/line gaussian problems
+xmin = 0.                   #min xval of grid
+xmax = 1.                   #max xval of grid
+xbins = 200                 #bins in x
+ymin = 0.                   #min yval of grid
+ymax = 1.                   #max yval of grid
+ybins = 200                 #bins in y
+xcov_change_linear_max_factor = 4.   #max change in x-growth
+ycov_change_linear_max_factor = 2.   #max change in y-growth
+cov_change_skew_rate = 2.0           #radian angle rotation
 
-batch_size = nsamp           # size of the batch of data trained on per epoch
-
-### --- MODE CONSTANTS --- ###
-LINE = 0
-GRID = 1
-ROOT = 2
-mode = ROOT
+nworkers = 8                #worker processes used in multiprocessing

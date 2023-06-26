@@ -22,13 +22,10 @@ class Made(tfb.AutoregressiveNetwork):
                          kernel_regularizer=kernel_regularizer, bias_regularizer=bias_regularizer, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
                          validate_args=validate_args, **kwargs)
         
-        # self.params = params
-        # self.event_shape = event_shape
         self.conditional = conditional
         self.conditional_event_shape = conditional_event_shape
         self.hidden_units = hidden_units
         self.activation = activation
-        # self.name = kwargs["name"]
     
     def call(self, x, conditional_input=None):
         
@@ -63,7 +60,7 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
                 shift_and_log_scale_fn=Made(params=2, hidden_units=[made_layers], event_shape=(num_inputs,), conditional=True,
                                             conditional_event_shape=cond_event_shape, activation='relu', name=f"made_{i}"), name=f"maf_{i}"))
     
-            # made_list.append(tfb.BatchNormalization())
+            # made_list.append(tfb.BatchNormalization(name=f"bn_{i}"))
             made_list.append(permutation)
     else:
         made_list_temp = []

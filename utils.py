@@ -5,6 +5,7 @@ Author: Anthony Atkinson
 '''
 # import argparse
 from datetime import datetime
+import json
 import os
 import tensorflow as tf
 
@@ -41,6 +42,15 @@ def init():
             print("saved model directory does not exist")
             exit()
 
+    os.mkdir(defs.flow_path)
+
+    config = dict([item for item in defs.__dict__.items() if not item[0].startswith('_')])
+    with open(flow_path + "/config.json", "w") as config_file:
+        json.dump(config, config_file, indent=4)
+
+    # Set the global random seed for tensorflow
+    tf.random.set_seed(defs.seed)
+
 # Progress bar which outputs at certain intervals only
 class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
     def __init__(self, verbose, epoch_interval, epoch_end, *args, **kwargs):
@@ -51,7 +61,8 @@ class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
     
     def on_epoch_begin(self, epoch, *args, **kwargs):
         self.verbose = (
-                0 if (epoch + 1) % self.epoch_interval != 0 and (epoch + 1) != self.epoch_end
+                0 if (epoch + 1) % self.epoch_interval != 0 and \
+                     (epoch + 1) != self.epoch_end
                 else self.default_verbose)
         if (epoch + 1) % self.epoch_interval == 0:
             print("epoch begin: ", datetime.now())

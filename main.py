@@ -18,10 +18,8 @@ if __name__ == "__main__":
 
     # Load training data
     else:
-        datapath = "data/root_2023-06-24_run01.npy"
-        labelpath = "data/root_labels_2023-06-24_run01.npy"
-        samples = np.load(datapath)
-        labels = np.load(labelpath)
+        samples = np.load(defs.samples_path)
+        labels = np.load(defs.labels_path)
 
     model, distribution, made_list = tutils.getmodel(defs.flow_path)
 

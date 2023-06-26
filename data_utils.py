@@ -5,7 +5,6 @@ a normalizing flow.
 Author: Anthony Atkinson
 '''
 
-from datetime import datetime
 import numpy as np
 import os
 import uproot as up
@@ -13,6 +12,7 @@ import uproot as up
 import defs
 import utils as myutils
 
+# Strings necessary for reading data from a ROOT TTree
 up.default_library = "np"
 cutstr = "CBL_Region == 1"
 phistr = "CBL_RecoPhi_mass"
@@ -22,7 +22,6 @@ ptstr = "Photon_pt"
 ptidxstr = "CBL_RecoPhi_photonindex"
 labelphistr = "GenPhi_mass"
 labelomegastr = "GenOmega_mass"
-numworkers = 4
 
 def makedata(mode, data_path=None, normalize=False):
 
@@ -31,7 +30,7 @@ def makedata(mode, data_path=None, normalize=False):
         exit()
 
     data_dir = defs.data_dir
-    run_name = defs.run_name
+    run_name = defs.flow_name
     
     samples_path = "%s/%s_samples.npy"%(data_dir, run_name)
     labels_path = "%s/%s_labels.npy"%(data_dir, run_name)
@@ -48,7 +47,7 @@ def makedata(mode, data_path=None, normalize=False):
         ctrs = dist_center_line_1d(uniquelabels, defs.yval)
 
         # generate cov mtx for each gaussian
-        # gaus_cov_indv = myutils.cov_skew(gaus_width, gaus_width/2., gaus_width/2., gaus_width)
+        # gaus_cov_indv = myutils.cov_skew(defs.sigma_gaus, defs.sigma_gaus/2., defs.sigma_gaus/2., defs.sigma_gaus)
         gaus_cov_indv = cov_xy(defs.sigma_gaus)
         gaus_covs = cov_change_none(ctrs, gaus_cov_indv)
         # samples each gaussian for n_samples points, each with an associated label
@@ -62,7 +61,7 @@ def makedata(mode, data_path=None, normalize=False):
         ctrs = dist_center_grid_2d(uniquelabels)
 
         # generate cov mtx for each gaussian
-        # gaus_cov_indv = myutils.cov_skew(gaus_width, gaus_width/2., gaus_width/2., gaus_width)
+        # gaus_cov_indv = myutils.cov_skew(defs.sigma_gaus, defs.sigma_gaus/2., defs.sigma_gaus/2., defs.sigma_gaus)
         gaus_cov_indv = cov_xy(defs.sigma_gaus)
         gaus_covs = cov_change_none(ctrs, gaus_cov_indv)
         # samples each gaussian for n_samples points, each with an associated label
@@ -74,6 +73,7 @@ def makedata(mode, data_path=None, normalize=False):
         samples, labels = _loadallroot(data_path)
     
     else:
+
         print("this type of training data generation is not implemented")
         return None
     
@@ -90,22 +90,22 @@ def makedata(mode, data_path=None, normalize=False):
     np.save(labels_path, labels)
     np.save(samples_path, data)
     
-    return samples, labels
+    return data, labels
 
 # Recursively loads all of the .ROOT files in the entire subdirectory tree
-# located at `datadir` into a numpy array
-def _loadallroot(datadir: str) -> np.ndarray:
+# located at `data_dir` into a numpy array
+def _loadallroot(data_dir: str) -> np.ndarray:
     samples = np.empty((0, 2))
     labels = np.empty((0, 2))
-    with os.scandir(datadir) as d:
+    with os.scandir(data_dir) as d:
         for entry in d:
             if entry.is_dir():
-                samples_temp, labels_temp = _loadallroot(datadir + '/' + entry.name)
+                samples_temp, labels_temp = _loadallroot(data_dir + '/' + entry.name)
                 samples = np.concatenate((samples_temp, samples), axis=0)
                 labels = np.concatenate((labels_temp, labels), axis=0)
             else:
-                print(datadir + '/' + entry.name)
-                samples, labels = _loadoneroot(datadir + '/' + entry.name)
+                print(data_dir + '/' + entry.name)
+                samples, labels = _loadoneroot(data_dir + '/' + entry.name)
 
     return samples, labels
 
@@ -114,15 +114,15 @@ def _loadallroot(datadir: str) -> np.ndarray:
 # arrays according to variables like 'twoprongindex' - this is taken care of in
 # this function and this function only. To define another cut or variable to be
 # indexed, this function should be modified or a new one provided.
-def _loadoneroot(datapath: str) -> np.ndarray:
-    if os.stat(datapath).st_size == 0:
+def _loadoneroot(data_path: str) -> np.ndarray:
+    if os.stat(data_path).st_size == 0:
         print("--- ^ empty file ^ ---")
         samples = np.empty((0, 2))
         labels = np.empty((0, 2))
         return samples, labels
 
     # load data
-    datafile = up.open(datapath)
+    datafile = up.open(data_path)
     events = datafile["Events;1"]
 
     # fetch desired columns
@@ -180,7 +180,7 @@ def _loadoneroot(datapath: str) -> np.ndarray:
 
 # Generates training samples distributed according to the Gaussians described
 # by `means` and `cov_mtxs` which each correspond to a given training label
-def sample_gaussian(n_samples: int, labels_unique: np.ndarray, means: np.ndarray, cov_mtxs: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+def sample_gaussian(nsamples: int, labels_unique: np.ndarray, means: np.ndarray, cov_mtxs: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     '''
     n_samples:      number of gaussian samples drawn for each label
     labels:         list of labels for which samples are made
@@ -190,6 +190,8 @@ def sample_gaussian(n_samples: int, labels_unique: np.ndarray, means: np.ndarray
 
     assert len(labels_unique) == len(means)
     assert len(labels_unique) == len(cov_mtxs)
+
+    rng = np.random.default_rng(defs.seed)
 
     ndim = cov_mtxs[0].shape[-1]
     ndim_label = labels_unique.shape[-1]
@@ -201,10 +203,10 @@ def sample_gaussian(n_samples: int, labels_unique: np.ndarray, means: np.ndarray
 
     # create data and label vectors for training
     for i in range(len(means)):
-        samples_i = np.random.multivariate_normal(means[i], cov_mtxs[i], size=n_samples)
+        samples_i = rng.multivariate_normal(means[i], cov_mtxs[i], size=nsamples)
         samples = np.concatenate((samples, samples_i), axis=0)
 
-        labels_i = np.repeat(labels_unique[i], n_samples).reshape(ndim_label, -1).T
+        labels_i = np.repeat(labels_unique[i], nsamples).reshape(ndim_label, -1).T
         labels = np.concatenate((labels, labels_i), axis=0)
 
     return samples, labels
