@@ -1,12 +1,137 @@
 import numpy as np
 import math
 from matplotlib import pyplot as plt
+import multiprocessing as mp
 from scipy.stats import chisquare
+from typing import Any
 
 import defs
+import data_utils
 
-def analyze():
-    pass
+plt.rcParams.update({
+    "font.family": "serif"
+})
+
+def analyze(distribution: Any, made_list: list[Any], gen_labels_path: str=None) -> None:
+
+    normdata_path = "%s/%s_normdata.npy"%(defs.data_dir, defs.data_name)
+    normdatacond_path = "%s/%s_normdatacond.npy"%(defs.data_dir, defs.data_name)
+
+    if gen_labels_path is None:
+        # whiten the label/convert to normalized net-friendly form
+        gen_labels = np.repeat([[2464, 5.125]], defs.ngen, axis=0) # arb. label
+        normdatacond = np.load(normdata_path, allow_pickle=True).item()
+        min_norm = normdatacond["min"]
+        max_norm = normdatacond["max"]
+        mean_norm = normdatacond["mean"]
+        std_norm = normdatacond["std"]
+
+        data_temp = (gen_labels - min_norm) / (max_norm - min_norm)
+        data_temp = np.log(1 / ((1 / data_temp) - 1))
+        gen_datacond = (data_temp - mean_norm) / std_norm
+
+    else:
+        gen_datacond = np.load(gen_labels_path)
+        gen_labels = data_utils.unwhiten(gen_datacond, normdatacond_path)
+
+    gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
+
+    # Define the conditional input (labels) for the flow to generate
+    current_kwargs = {}
+    for i in range(defs.nmade):
+        current_kwargs[f"maf_{i}"] = {"conditional_input" : gen_datacond}
+
+    # >>>> THIS needs to be properly fixed. Check out tutorial
+    # # plot the output from intermediate flows
+    # for i, d in enumerate(made_list):
+    #     out = np.array(d.sample((defs.nsamp, ), bijector_kwargs=current_kwargs))
+    #     plt.scatter(out[:, 0], out[:, 1], color='darkblue', s=25)
+
+    # Generate the data given the test labels!
+    gen_data = np.array(distribution.sample((gen_datacond.shape[0], ), bijector_kwargs=current_kwargs))
+    
+    gen_samples = data_utils.unwhiten(gen_data, normdata_path)
+    gen_labels = data_utils.unwhiten(gen_datacond, normdatacond_path)
+
+    # grouped_data = [samples[inverseunique == i] for i in range(len(labelsunique))]
+    # out_paths = [outpath_i%i for i in range(len(labelsunique))]
+    # out_paths_hist = [outpath_i_hist%i for i in range(len(labelsunique))]
+
+    # # Plot scatter plots and histograms for each label
+    # with mp.Pool(defs.nworkers) as pool:
+    #     pool.starmap(plot_one, zip(grouped_data, labelsunique, out_paths))
+    #     pool.starmap(hist_one, zip(grouped_data, labelsunique, out_paths_hist))
+
+    outpath_all = "output/06-27_gridout/plotgen.png"
+    outpath_i = "output/06-27_gridout/plotgen%03i.png"
+    outpath_i_hist = "output/06-27_gridout/histgen%03i.png"
+
+    grouped_data = [gen_samples[gen_inverse_unique == i] for i in range(len(gen_labels_unique))]
+    out_paths = [outpath_i%i for i in range(len(gen_labels_unique))]
+    out_paths_hist = [outpath_i_hist%i for i in range(len(gen_labels_unique))]
+
+    # Plot scatter plots and histograms for each label
+    with mp.Pool(defs.nworkers) as pool:
+        pool.starmap(plot_one, zip(grouped_data, gen_labels_unique, out_paths))
+        pool.starmap(hist_one, zip(grouped_data, gen_labels_unique, out_paths_hist))
+
+    # Plot scatter plot for all data
+    plot_all(gen_samples, gen_labels, outpath_all)
+    # plot_all(samples, labelsunique, outpath_all)
+
+    # Numerical analysis
+    # ...
+
+    
+
+# Scatter plot of samples for one label
+def plot_one(samples, label, outpath):
+
+    fig, ax = plt.subplots()
+    ax.scatter(samples[:,0], samples[:,1], c="green", s=20, alpha=0.5)
+    ax.scatter(label[0], label[1], c="red", s=20)
+    ax.set_title("Generated Samples for (%g, %.3f)\nN = %i"%(label[0], label[1], len(samples)))
+    ax.set_xlim((defs.phi_min, defs.phi_max))
+    ax.set_ylim((defs.omega_min, defs.omega_max))
+    ax.set_xlabel("Reconstructed $\Phi$ Mass (GeV)")
+    ax.set_ylabel("Reconstructed $\omega$ Mass (GeV)")
+    ax.grid(visible=True)
+    fig.savefig(outpath)
+    plt.close()
+
+# Histogram of samples for one label
+def hist_one(samples, label, outpath):
+    nbinsx = 50
+    nbinsy = 50
+    
+    fig, ax = plt.subplots()
+    _, _, _, img = ax.hist2d(samples[:,0], samples[:,1], bins=(nbinsx, nbinsy), range=((defs.phi_min, defs.phi_max), (defs.omega_min, defs.omega_max)))
+    plt.scatter(label[0], label[1], c="red", s=20)
+    ax.set_title("Generated Samples for (%g, %.3f)\nN = %i"%(label[0], label[1], len(samples)))
+    ax.set_xlim((defs.phi_min, defs.phi_max))
+    ax.set_ylim((defs.omega_min, defs.omega_max))
+    ax.set_xlabel("Reconstructed $\Phi$ Mass (GeV)")
+    ax.set_ylabel("Reconstructed $\omega$ Mass (GeV)")
+    fig.colorbar(img)
+    fig.savefig(outpath)
+    plt.close()
+
+# Scatter plot of samples for all labels
+def plot_all(samples, labels_unique, outpath):
+
+    fig, ax = plt.subplots()
+
+    ax.scatter(samples[:,0], samples[:,1], c="blue", s=20, alpha=0.5)
+    ax.scatter(labels_unique[:, 0], labels_unique[:,1], c="orange", s=20)
+    ax.set_xlim((defs.phi_min, defs.phi_max))
+    ax.set_ylim((defs.omega_min, defs.omega_max))
+    ax.set_title("Generated Samples N = %i"%(len(samples)))
+    ax.set_xlabel("Reconstructed $\Phi$ Mass (GeV)")
+    ax.set_ylabel("Reconstructed $\omega$ Mass (GeV)")
+    ax.grid(visible=True)
+    fig.savefig(outpath)
+    plt.show()
+
 
 # training data plot
 def plot_train(data, labels, path):
@@ -42,15 +167,7 @@ def plot_gen(datatrain, datagen, labelstrain, labelsgen, outputpath):
     ax.set_title("Flow Output and Training Samples", fontsize=25)
     fig.savefig(outputpath)
 
-# plot the intermediate results
-def plot_gen_intermediate():
-    # for i, d in enumerate(feat_extraction_dists):
-    #     out = np.array(d.sample((n_samples, ), bijector_kwargs=current_kwargs))
-    #     plt.scatter(out[:, 0], out[:, 1], color='darkblue', s=25)
-    pass
 
-# def _chi2(p, q):
-#     return np.sum(np.divide(np.square(np.subtract(p, q)), q))
 
 def _gausformula(x, mean, var) -> np.ndarray:
     return np.divide(np.exp(np.multiply(-1./2 / var, np.square(np.subtract(x, mean)))),

@@ -7,23 +7,30 @@ Author: Anthony Atkinson
 from datetime import datetime
 import json
 import os
+import shutil
 import tensorflow as tf
 
 import defs
 
 def init():
 
-    model_dir = defs.model_dir
-    flow_path = defs.flow_path
+    if not os.path.isdir(defs.data_dir):
+        print("Invalid 'data_dir' directory: %s"%defs.data_dir)
+        exit()
 
-    if not (os.path.isdir(defs.data_dir) and os.path.isdir(model_dir) \
-            and os.path.isdir(defs.output_dir) and os.path.isdir(defs.root_dir)):
-        print("invalid directories")
+    if not os.path.isdir(defs.model_dir):
+        print("Invalid 'model_dir' directory: %s"%defs.model_dir)
         exit()
     
-    # run_num = 0
-    # flowname = datetime.today().date()
-    # flowpath = "/".join([model_dir,'flow_%s_run%02i'%(flowname, run_num)])
+    if not os.path.isdir(defs.output_dir):
+        print("Invalid 'output_dir' directory: %s"%defs.output_dir)
+        exit()
+    
+    if not os.path.isdir(defs.root_dir):
+        print("Invalid 'root_dir' directory: %s"%defs.root_dir)
+        exit()
+
+    flow_path = defs.flow_path
 
     # Training a new model where model dir already exists
     if os.path.isdir(flow_path) and defs.newmodel:
@@ -35,15 +42,18 @@ def init():
             exit()
         else:
             print("Removing the previous model at %s...")
-            os.rmdir(flow_path)
+            shutil.rmtree(flow_path)
 
     # Loading a model from a dir that does not exist
     elif not (os.path.isdir(flow_path) or defs.newmodel):
             print("saved model directory does not exist")
             exit()
 
-    os.mkdir(defs.flow_path)
+    # Create directory for the new model
+    if defs.newmodel:
+        os.mkdir(defs.flow_path)    
 
+    # Save configuration (state of 'defs.py') at run-time
     config = dict([item for item in defs.__dict__.items() if not item[0].startswith('_')])
     with open(flow_path + "/config.json", "w") as config_file:
         json.dump(config, config_file, indent=4)

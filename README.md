@@ -22,15 +22,19 @@ Create a new environment using (ana/mini)conda package manager:
 
 ## Running An Experiment
 
+FIRST! Check ```defs.py``` for the parameters of the run. These parameters must be updated appropriately if one wishes to load a network correctly as well. A run's full parameter set is stored in each model's directory as ```config.json``` - do NOT name a file that if you wish to keep its contents or the run's parameters.
+
+The ability to load a run from its parameter config file will be implemented in the near future. Until then, PARAMETERS MUST BE MANUALLY ENTERED INTO ```defs.py``` BEFORE EACH RUN. This includes the directories and names used for the model, data, output, etc.
+
 To run the network:
 ```python main.py```
 
 --- OR ---
 
 ``` py
-# defines where checkpoitns are saved with optional format string for the epoch at the time of saving
+# Defines where checkpoints are saved with optional format string for the epoch at the time of saving
 ckptpath = flowpath + "/cp-{epoch:04d}.ckpt"
-# as this is once again a unsupervised task, the target vector y is zeros
+# For unsupervised learning, the target vector y is zeros
 model.fit(x=[samples, labels],
         y=np.zeros((samples.shape[0], 0), dtype=np.float32),
         shuffle=True,
@@ -49,7 +53,7 @@ model.fit(x=[samples, labels],
                 epoch_interval=10,
                 epoch_end=defs.nepochs)])
 
-# simple to save the model!
+# Simple to save the model!
 model.save(flowpath)
 ```
 
@@ -95,3 +99,4 @@ Running ```python main.py``` saves the version of ```defs.py``` at run-time in t
 
 Change relevant parameters in defs before running the model or analysis script. Make sure to update ALL parameters relevant to a run. This includes flags, directories, 'names' (used to locate data or models), epochs for re-training, etc.
 
+Check out ```analysis_example.py``` or ```analysis_utils.analyze``` which is the default analysis behavior when running ```main.py```. There are other examples in this github that were more so tools for testing behavior of different functions, libraries, and the network itself, but I figure they may be useful to look at as guides.

@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     # Make new training data and save it
     if defs.newdata:
-        samples, labels = dutils.makedata(defs.mode, data_path=defs.root_dir, normalize=True)
+        samples, labels = dutils.makedata(defs.mode, data_path=defs.root_dir, normalize=defs.normalize)
 
     # Load training data
     else:
@@ -27,4 +27,6 @@ if __name__ == "__main__":
         tutils.train(model, samples, labels, defs.flow_path)
 
     if defs.newanalysis:
-        autils.analyze()
+        gen_datacond_path = "%s/%s_labels.npy"%(defs.data_dir, defs.data_name)
+        # gen_datacond_path = None
+        autils.analyze(distribution, made_list, gen_datacond_path)

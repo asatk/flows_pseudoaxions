@@ -48,7 +48,7 @@ class Made(tfb.AutoregressiveNetwork):
         
         return config
 
-def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=None, num_made=10) -> tuple[tfd.TransformedDistribution, list[Any]]:
+def build_distribution(made_list, num_inputs, hidden_layers=1, hidden_units=128, cond_event_shape=None, num_made=10) -> tuple[tfd.TransformedDistribution, list[Any]]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
@@ -57,7 +57,7 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
     if len(made_list) == 0:
         for i in range(num_made):
             made_list.append(tfb.MaskedAutoregressiveFlow(
-                shift_and_log_scale_fn=Made(params=2, hidden_units=[made_layers], event_shape=(num_inputs,), conditional=True,
+                shift_and_log_scale_fn=Made(params=2, hidden_units=hidden_layers * [hidden_units], event_shape=(num_inputs,), conditional=True,
                                             conditional_event_shape=cond_event_shape, activation='relu', name=f"made_{i}"), name=f"maf_{i}"))
     
             # made_list.append(tfb.BatchNormalization(name=f"bn_{i}"))
@@ -80,10 +80,10 @@ def build_distribution(made_list, num_inputs, made_layers=128, cond_event_shape=
     
     return distribution, made_list
 
-def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=128) -> tuple[tfk.Model, Any, list[Any]]:
+def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, hidden_layers=1, hidden_units=128) -> tuple[tfk.Model, Any, list[Any]]:
 
     made_list = []
-    distribution, made_list = build_distribution(made_list, num_inputs, made_layers=made_layers, cond_event_shape=(num_cond_inputs, ), num_made=num_made)
+    distribution, made_list = build_distribution(made_list, num_inputs, hidden_layers=hidden_layers, hidden_units=hidden_units, cond_event_shape=(num_cond_inputs, ), num_made=num_made)
     
     x_ = tfk.layers.Input(shape=(num_inputs,), name="aux_input")
     input_list = [x_]
@@ -98,7 +98,8 @@ def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, made_layers=12
     log_prob_ = distribution.log_prob(x_, bijector_kwargs=current_kwargs)
   
     model = tfk.Model(input_list, log_prob_)
-    max_epochs = 100  # maximum number of epochs of the training
+    # max_epochs = 100  # maximum number of epochs of the training
+    max_epochs = defs.nepochs
     learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(defs.base_lr, max_epochs, defs.end_lr, power=0.5)
     model.compile(optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
                 loss=lossfn)

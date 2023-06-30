@@ -5,6 +5,7 @@
 /model/
 /output/
 /root/
+/tests/
 *.code-workspace
 *.h5
 *.ipynb
