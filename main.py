@@ -29,4 +29,5 @@ if __name__ == "__main__":
     if defs.newanalysis:
         gen_datacond_path = "%s/%s_labels.npy"%(defs.data_dir, defs.data_name)
         # gen_datacond_path = None
-        autils.analyze(distribution, made_list, gen_datacond_path)
+        losslog = defs.flow_path + "/losslog.npy"
+        autils.analyze(distribution, made_list, gen_labels_path=gen_datacond_path, losslog=losslog)

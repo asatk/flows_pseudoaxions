@@ -2,13 +2,13 @@
 /.ipynb_checkpoints/
 /bad/
 /data/
+/imgs/
 /model/
 /output/
 /root/
-/tests/
 *.code-workspace
 *.h5
-*.ipynb
 *.png
 *.txt
 *GAN.py
+flow_tutorial.ipynb

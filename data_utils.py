@@ -103,7 +103,7 @@ def makedata(mode: int, data_path: str=None, normalize: bool=False) -> tuple[np.
     np.save(labels_path, data_cond)
     np.save(samples_path, data)
     
-    return data, labels
+    return data, data_cond
 
 
 def _loadallroot(data_dir: str, event_threshold: float=0.01) -> np.ndarray:
@@ -116,12 +116,12 @@ def _loadallroot(data_dir: str, event_threshold: float=0.01) -> np.ndarray:
     with os.scandir(data_dir) as d:
         for entry in d:
             if entry.is_dir():
-                samples_temp, labels_temp = _loadallroot(data_dir + '/' + entry.name, event_threshold=event_threshold)
+                samples_temp, labels_temp = _loadallroot(data_dir + "/" + entry.name, event_threshold=event_threshold)
                 samples = np.concatenate((samples_temp, samples), axis=0)
                 labels = np.concatenate((labels_temp, labels), axis=0)
             else:
-                print(data_dir + '/' + entry.name)
-                samples, labels = _loadoneroot(data_dir + '/' + entry.name, event_threshold=event_threshold)
+                print(data_dir + "/" + entry.name)
+                samples, labels = _loadoneroot(data_dir + "/" + entry.name, event_threshold=event_threshold)
 
     return samples, labels
 
@@ -247,20 +247,26 @@ def sample_gaussian(nsamples: int, labels_unique: np.ndarray, means: np.ndarray,
     return samples, labels
 
 
-def whiten(data: np.ndarray, normdata_path: str) -> np.ndarray:
+def whiten(data: np.ndarray, normdata_path: str=None) -> np.ndarray:
     '''
     Standardize the data to make it more 'network-friendly'. Whitened data
     are significantly easier to train on and show benefits in results. The
     statistics used to whiten the data are stored, to be used later for
     inverting this transformation back into data that is in the desired form.
+    The mean and std. dev. stored as the "norm data" are not that of the raw
+    data but just shift and scale parameters in the last transformation of the
+    whitening transformation. Conversely, the min and max stored as the "norm
+    data" are the minimum and maxmimum values of the raw data along each
+    coordinate axis.
+
+    data: np.ndarray
+        raw N-D coordinates that have not been pre-processed
+    normdata_path: str, None
+        path to file where whitening data are stored for unwhitening
     '''
 
     min_norm = np.min(data, axis=0) - 1e-5
     max_norm = np.max(data, axis=0) + 1e-5
-    # mean_norm = np.mean(data, axis=0)     # THIS IS THE WRONG MEAN
-    # std_norm = np.std(data, axis=0)       # THIS IS THE WRONG STD DEV
-
-    
 
     # confine data to the unit interval [0., 1.]
     data_unit = (data - min_norm) / (max_norm - min_norm)
@@ -268,14 +274,15 @@ def whiten(data: np.ndarray, normdata_path: str) -> np.ndarray:
     # apply 'logit' transform to map unit interval to (-inf, +inf)
     data_logit = np.log(1 / ((1 / data_unit) - 1))
 
-    mean_norm = np.mean(data_logit, axis=0) # THIS IS THE RIGHT STD DEV
-    std_norm = np.std(data_logit, axis=0)   # THIS IS THE RIGHT STD DEV
+    mean_norm = np.mean(data_logit, axis=0)
+    std_norm = np.std(data_logit, axis=0)
 
     # standardize the data to have 0 mean and unit variance
     data_norm = (data_logit - mean_norm) / std_norm
  
     normdata = {"min": min_norm, "max": max_norm, "mean": mean_norm, "std": std_norm}
-    np.save(normdata_path, normdata)
+    if normdata_path is not None:
+        np.save(normdata_path, normdata)
 
     return data_norm
 
@@ -285,8 +292,18 @@ def unwhiten(data_norm: np.ndarray, normdata_path) -> np.ndarray:
     that are interpretable to the end user. The inverse transformation must use
     the same min/max/mean/std values that were used to first whiten the data
     for an accurate representation of the samples.
+
+    data: np.ndarray
+        raw N-D coordinates that have not been pre-processed
+    normdata_path: str, None
+        path to file where whitening data are stored for unwhitening. Returns
+        array of zeroes with same shape as data_norm if not a valid path.
     '''
 
+    if normdata_path is None or not os.path.isfile(normdata_path):
+        print("`normdata_path` cannot be None - must be a valid path to" + \
+              "unwhitening data. Returning zeroes.")
+        return np.zeros_like(data_norm)
     normdata = np.load(normdata_path, allow_pickle=True).item()
 
     min_norm = normdata["min"]

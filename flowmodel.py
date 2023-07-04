@@ -12,8 +12,8 @@ import defs
 # on the output log-scale when the Network is called. This allows for better regularization and helps with "inf" and "nan" values that otherwise would
 # frequently occur during training.
 class Made(tfb.AutoregressiveNetwork):
-    def __init__(self, params=None, event_shape=None, conditional=True, conditional_event_shape=None, conditional_input_layers='all_layers', hidden_units=None,
-                 input_order='left-to-right', hidden_degrees='equal', activation=None, use_bias=True,kernel_initializer='glorot_uniform', bias_initializer='zeros',
+    def __init__(self, params=None, event_shape=None, conditional=True, conditional_event_shape=None, conditional_input_layers="all_layers", hidden_units=None,
+                 input_order="left-to-right", hidden_degrees="equal", activation=None, use_bias=True,kernel_initializer="glorot_uniform", bias_initializer="zeros",
                  kernel_regularizer=None, bias_regularizer=None, kernel_constraint=None, bias_constraint=None, validate_args=False, **kwargs):
         
         super().__init__(params=params, event_shape=event_shape, conditional=conditional, conditional_event_shape=conditional_event_shape,
@@ -48,19 +48,22 @@ class Made(tfb.AutoregressiveNetwork):
         
         return config
 
-def build_distribution(made_list, num_inputs, hidden_layers=1, hidden_units=128, cond_event_shape=None, num_made=10) -> tuple[tfd.TransformedDistribution, list[Any]]:
+def build_distribution(made_list: list, num_inputs: int, num_made: int=10, hidden_layers: int=1, hidden_units: int=128, cond_event_shape: tuple=None) -> tuple[tfd.TransformedDistribution, list[Any]]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
     
     permutation = tfb.Permute(np.arange(0, num_inputs)[::-1])
+    hidden_units_list = hidden_layers * [hidden_units]
     if len(made_list) == 0:
         for i in range(num_made):
             made_list.append(tfb.MaskedAutoregressiveFlow(
-                shift_and_log_scale_fn=Made(params=2, hidden_units=hidden_layers * [hidden_units], event_shape=(num_inputs,), conditional=True,
-                                            conditional_event_shape=cond_event_shape, activation='relu', name=f"made_{i}"), name=f"maf_{i}"))
-    
-            # made_list.append(tfb.BatchNormalization(name=f"bn_{i}"))
+                    shift_and_log_scale_fn=Made(
+                            params=2, hidden_units=hidden_units_list,
+                            event_shape=(num_inputs,), conditional=True,
+                            conditional_event_shape=cond_event_shape,
+                            activation="relu", name=f"made_{i}"),
+                            name=f"maf_{i}"))
             made_list.append(permutation)
     else:
         made_list_temp = []
@@ -93,16 +96,16 @@ def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, hidden_layers=
 
     current_kwargs = {}
     for i in range(num_made):
-        current_kwargs[f"maf_{i}"] = {'conditional_input' : c_}
+        current_kwargs[f"maf_{i}"] = {"conditional_input" : c_}
     
     log_prob_ = distribution.log_prob(x_, bijector_kwargs=current_kwargs)
   
     model = tfk.Model(input_list, log_prob_)
-    # max_epochs = 100  # maximum number of epochs of the training
-    max_epochs = defs.nepochs
-    learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(defs.base_lr, max_epochs, defs.end_lr, power=0.5)
-    model.compile(optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
-                loss=lossfn)
+    learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(
+            defs.base_lr, defs.decay_steps, defs.end_lr, power=0.5, cycle=True)
+    model.compile(
+            optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
+            loss=lossfn)
 
     return model, distribution, made_list
 
@@ -110,6 +113,10 @@ def lossfn(x, logprob):
     return -logprob
 
 def intermediate_flows_chain(made_list):
+    '''
+    Separate each step of the flow into individual distributions in order to
+    samples from and test each bijection's output.
+    '''
     # reverse the list of made blocks to unpack in generating direction
     made_list_rev = list(reversed(made_list[:-1]))
 

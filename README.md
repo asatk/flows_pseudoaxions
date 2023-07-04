@@ -1,7 +1,12 @@
 <!--flows README-->
+- [Current Bugs/Issues/"Features"](#current-bugsissuesfeatures)
 - [Getting Started](#getting-started)
   - [Running An Experiment](#running-an-experiment)
   - [Performing Analysis](#performing-analysis)
+
+# Current Bugs/Issues/"Features"
+ - All information pertinent to a run is contained in `defs.py` and should be treated as read-only during a run. A copy of all of the run variables from `defs.py` are stored in `config.json` in the directory containing the rest of the saved model. Albeit convenient to have a large dictionary of constants at run time for all local modules to see, it makes running a new model a bit tedious, by way of having to entire a file and change a few constants for every new run. Realistically, constants should be constants. These other parameters should be stored as a separate configuration file and loaded globally into the program namespace. These could also be treated as command-line args or GUI toggles/entries. No telling what the future holds.
+ - The checkpointing callback does not save exactly at the epoch interval desired. I think this is likely a rounding issue as it looks to save based on the n-th batch, not the n-th epoch. So dividing total data size by batchsize produces yields an extra training step in the epoch to finish the last batch/cover the remainder. The math for the saving frequency for ckpt does not take this into account. Perhaps find a way to align checkpointing with epochs, though this is more an aesthetic/meta-accuracy thing than critical to the model's success.
 
 # Getting Started
 
@@ -99,4 +104,4 @@ Running ```python main.py``` saves the version of ```defs.py``` at run-time in t
 
 Change relevant parameters in defs before running the model or analysis script. Make sure to update ALL parameters relevant to a run. This includes flags, directories, 'names' (used to locate data or models), epochs for re-training, etc.
 
-Check out ```analysis_example.py``` or ```analysis_utils.analyze``` which is the default analysis behavior when running ```main.py```. There are other examples in this github that were more so tools for testing behavior of different functions, libraries, and the network itself, but I figure they may be useful to look at as guides.
+Check out ```analysis_example.py``` for an example analysis or ```analysis_utils.analyze```, the default analysis behavior when running ```main.py```. There are other examples in this github that were more so tools for testing behavior of different functions, libraries, and the network itself, but I figure they may be useful to look at as guides. They may not run; these scripts serve as examples of the pipeline of a subset of instructions in different parts of the flow workflow, i.e., data generation/loading, plotting, comparing generated data to training data.
