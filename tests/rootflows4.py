@@ -10,14 +10,15 @@ import flowmodel
 import rootflows2
 
 
-modeldir = "./model/flow_2023-06-24_10x10_run00"
+# load model
+modeldir = "./model/flow_2023-06-25_10x10_run01"
 
 model = keras.models.load_model(modeldir, custom_objects={"lossfn": flowmodel.lossfn, "Made": flowmodel.Made})
 made_blocks = []
 for i in range(defs.nmade):
     made_blocks.append(model.get_layer(name=f"made_{i}"))
 
-distribution, made_list = flowmodel.build_distribution(made_blocks, defs.ndim)
+distribution, made_list = flowmodel.build_distribution(made_blocks, defs.ndim, hidden_layers=defs.hidden_layers, hidden_units=defs.hidden_units)
 
 # xax = np.linspace(defs.phi_min, defs.phi_max, defs.ndistx, endpoint=True, dtype=float)
 # yax = np.linspace(defs.omega_min, defs.omega_max, defs.ndisty, endpoint=True, dtype=float)
@@ -50,7 +51,8 @@ for i in range(defs.nmade):
 
 gen_data = np.array(distribution.sample((gen_labels.shape[0], ), bijector_kwargs=current_kwargs))
 
-
+# change out pathnames aaaaaaaa
+# exit()
 
 plt.rcParams.update({
     # "text.usetex": True,
