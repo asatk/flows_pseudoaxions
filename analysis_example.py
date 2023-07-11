@@ -95,8 +95,8 @@ distribution, made_list = flowmodel.build_distribution(made_blocks, defs.ndim, h
 # Load unwhitened training data
 data = np.load(samples_path)
 datacond = np.load(labels_path)
-samples = dutils.unwhiten(data, normdata_path)
-labels = dutils.unwhiten(datacond, normdata_path)
+samples = dutils.dewhiten(data, normdata_path)
+labels = dutils.dewhiten(datacond, normdata_path)
 labels_unique, inverse_unique = np.unique(labels, return_inverse=True, axis=0)
 
 ### Create test labels for which new data are generated:
@@ -128,7 +128,7 @@ gen_datacond = np.repeat(datacond_unique, defs.ngen, axis=0)
 
 # Get only the unique labels and a mapping to where each label occurs in the list of all labels
 gen_datacond_unique, gen_inverse_unique = np.unique(gen_datacond, return_inverse=True, axis=0)
-gen_labels_unique = dutils.unwhiten(gen_datacond_unique, normdatacond_path)
+gen_labels_unique = dutils.dewhiten(gen_datacond_unique, normdatacond_path)
 gen_labels = gen_labels_unique[gen_inverse_unique]  # gen all labels if not already defined
 
 # Define the conditional input (labels) for the flow to generate
@@ -138,7 +138,7 @@ for i in range(defs.nmade):
 
 # Generate the data given the test labels! De-normalize them once generated.
 gen_data = np.array(distribution.sample((gen_datacond.shape[0], ), bijector_kwargs=current_kwargs))
-gen_samples = dutils.unwhiten(gen_data, normdata_path)
+gen_samples = dutils.dewhiten(gen_data, normdata_path)
 
 print(np.min(gen_samples, axis=0))
 print(np.max(gen_samples, axis=0))

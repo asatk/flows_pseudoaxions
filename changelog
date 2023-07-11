@@ -1,0 +1,40 @@
+FEDHEX 0.0.0
+DATE 2023.07.08
+
+main.py
+> main
+    parameters updated to reflect the updated signatures of analysis functions
+
+data_utils.py
+> makedata
+    training samples/data are stored with the suffix "_data.npy" instead
+    of the previously-used "_samples.npy" 
+    training labels/conditional data are stored with the suffix "_cond.npy"
+    instead of the previously-used "_labels.npy"
+    whitening constants for data are stored with the suffix "_data_wtn.npy"
+    instead of the previously-used "_normdata.npy" 
+    whitening constants for conditional data are stored with the suffix
+    "_cond_wtn.npy" instead of the previously-used "_normdatacond.npy" 
+
+analysis_example.py
+>>>> need to update example to mirror `analysis_utils.py`
+
+analysis_utils.py
+> analyze
+    included all epoch losses (not exluding the first anymore) because the
+    behavior of `plot_losses` has been updated to plot as semilog
+> plot_losses
+    losses vs epoch plotted as semilog time series. negative losses are
+    plotted as their abs. val. but in red. the first turnover point, where
+    losses go positive to negative, is plotted as a gray dashed line
+>
+
+READEME.md
+> Goals
+    new section. included goals of project + name of framework: FEDHEX
+> Generating Data
+    new section. included info on how to generate training data for FEDHEX
+>>>> Need to add more info to the new sections
+>>>> Need to update `Running an Experiment` section to have more accurate
+>>>> instructions on running model.
+

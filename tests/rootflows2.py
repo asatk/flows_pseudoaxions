@@ -5,7 +5,7 @@ import numpy as np
 
 import analysis_utils
 import defs
-import train_utils
+import data_utils
 
 def makeplot(samples, label, outpath):
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     normdatapath = "data/root_norm_2023-06-24_run01.npy"
 
     if loadnew:
-        samples, labels = train_utils._loadallroot(datadir)
+        samples, labels = data_utils._loadallroot(datadir)
         np.save(datapath, samples)
         np.save(labelpath, labels)
     else:
@@ -67,10 +67,8 @@ if __name__ == "__main__":
         samples = (samples * std) + mean
 
     labelsunique, inverseunique = np.unique(labels, return_inverse=True, axis=0)
-    # analysis_utils.plot_train(samples, labelsunique, outpath)
 
     plt.rcParams.update({
-        # "text.usetex": True,
         "font.family": "serif"
     })
 

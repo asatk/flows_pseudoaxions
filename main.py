@@ -27,7 +27,16 @@ if __name__ == "__main__":
         tutils.train(model, samples, labels, defs.flow_path)
 
     if defs.newanalysis:
-        gen_datacond_path = "%s/%s_labels.npy"%(defs.data_dir, defs.data_name)
+        normdata_path = "%s/%s_data_wtn.npy"%(defs.data_dir, defs.data_name)
+        normcond_path = "%s/%s_cond_wtn.npy"%(defs.data_dir, defs.data_name)
+        trn_data_path = "%s/%s_data.npy"%(defs.data_dir, defs.data_name)
+        trn_cond_path = "%s/%s_cond.npy"%(defs.data_dir, defs.data_name)
+        gen_data_path = None
         # gen_datacond_path = None
+        gen_cond_path = "%s/%s_labels.npy"%(defs.data_dir, defs.data_name)
         losslog = defs.flow_path + "/losslog.npy"
-        autils.analyze(distribution, made_list, gen_labels_path=gen_datacond_path, losslog=losslog)
+
+        autils.analyze(distribution, made_list, normdata_path, normcond_path,
+                       trn_data_path, trn_cond_path,
+                       gen_data_path=gen_data_path,
+                       gen_cond_path=gen_cond_path, losslog=losslog)

@@ -44,10 +44,10 @@ def makedata(mode: int, data_path: str=None, normalize: bool=False) -> tuple[np.
     data_dir = defs.data_dir
     run_name = defs.data_name
     
-    samples_path = "%s/%s_samples.npy"%(data_dir, run_name)
-    labels_path = "%s/%s_labels.npy"%(data_dir, run_name)
-    normdata_path = "%s/%s_normdata.npy"%(data_dir, run_name)
-    normdatacond_path = "%s/%s_normdatacond.npy"%(data_dir, run_name)
+    data_path = "%s/%s_data.npy"%(data_dir, run_name)
+    cond_path = "%s/%s_cond.npy"%(data_dir, run_name)
+    normdata_path = "%s/%s_data_wtn.npy"%(data_dir, run_name)
+    normdatacond_path = "%s/%s_cond_wtn.npy"%(data_dir, run_name)
 
     if mode == defs.LINE:
         
@@ -100,8 +100,8 @@ def makedata(mode: int, data_path: str=None, normalize: bool=False) -> tuple[np.
         data_cond = labels
     
     # Save the ready-for-training data and their labels
-    np.save(labels_path, data_cond)
-    np.save(samples_path, data)
+    np.save(cond_path, data_cond)
+    np.save(data_path, data)
     
     return data, data_cond
 
@@ -247,7 +247,7 @@ def sample_gaussian(nsamples: int, labels_unique: np.ndarray, means: np.ndarray,
     return samples, labels
 
 
-def whiten(data: np.ndarray, normdata_path: str=None) -> np.ndarray:
+def whiten(data: np.ndarray, normdata_path: str, load_norm: bool=False) -> np.ndarray:
     '''
     Standardize the data to make it more 'network-friendly'. Whitened data
     are significantly easier to train on and show benefits in results. The
@@ -262,11 +262,23 @@ def whiten(data: np.ndarray, normdata_path: str=None) -> np.ndarray:
     data: np.ndarray
         raw N-D coordinates that have not been pre-processed
     normdata_path: str, None
-        path to file where whitening data are stored for unwhitening
+        path to file where whitening data are stored. If `load_norm` is `True`,
+        the whitening constants are loaded from the file specified at the path.
+        Otherwise, constants are saved at the specified location unless
+        `nomrdata_path` is None.
+    load_norm: bool
+        flag indicating whether or not to load the whitening constants from the
+        path specified. If False, these constants are determined in calculation
+        of the whitening transformation and saved at normdata_path.
     '''
 
-    min_norm = np.min(data, axis=0) - 1e-5
-    max_norm = np.max(data, axis=0) + 1e-5
+    if load_norm:
+        normdata = np.load(normdata_path)
+        min_norm = normdata["min"]
+        max_norm = normdata["max"]
+    else:
+        min_norm = np.min(data, axis=0) - 1e-5
+        max_norm = np.max(data, axis=0) + 1e-5
 
     # confine data to the unit interval [0., 1.]
     data_unit = (data - min_norm) / (max_norm - min_norm)
@@ -274,19 +286,24 @@ def whiten(data: np.ndarray, normdata_path: str=None) -> np.ndarray:
     # apply 'logit' transform to map unit interval to (-inf, +inf)
     data_logit = np.log(1 / ((1 / data_unit) - 1))
 
-    mean_norm = np.mean(data_logit, axis=0)
-    std_norm = np.std(data_logit, axis=0)
+    if load_norm:
+        mean_norm = normdata["mean"]
+        std_norm = normdata["std"]
+    else:
+        mean_norm = np.mean(data_logit, axis=0)
+        std_norm = np.std(data_logit, axis=0)
 
     # standardize the data to have 0 mean and unit variance
     data_norm = (data_logit - mean_norm) / std_norm
  
-    normdata = {"min": min_norm, "max": max_norm, "mean": mean_norm, "std": std_norm}
-    if normdata_path is not None:
-        np.save(normdata_path, normdata)
+    if not load_norm:
+        normdata = {"min": min_norm, "max": max_norm, "mean": mean_norm, "std": std_norm}
+        if normdata_path is not None:
+            np.save(normdata_path, normdata)
 
     return data_norm
 
-def unwhiten(data_norm: np.ndarray, normdata_path) -> np.ndarray:
+def dewhiten(data_norm: np.ndarray, normdata_path) -> np.ndarray:
     '''
     Invert the standardized data that were output from the network into values
     that are interpretable to the end user. The inverse transformation must use

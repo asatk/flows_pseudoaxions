@@ -7,16 +7,16 @@ geometry and data of the problem being interpolated.
 # Paths
 data_dir = "data/"                      #dir where training data are stored
 model_dir = "model/"                    #dir where model is saved (ckpts too)
-output_dir = "output/07-04_box1_test1/" #dir where a given analysis outputs
+output_dir = "output/07-08_box1_test1/" #dir where a given analysis outputs
 root_dir = "root/10x10box_10k_jun2023"  #location where .ROOT files are stored
-flow_name = "07-04_TEST01"               #name of model
-data_name = "07-04_TEST01"               #name used by data files of interest
+flow_name = "07-08_TEST01"               #name of model
+data_name = "07-08_TEST01"               #name used by data files of interest
 
 flow_path = model_dir + flow_name
-samples_path = data_dir + data_name + "_samples.npy"
-labels_path = data_dir + data_name +"_labels.npy"
-normdata_path = data_dir + data_name + "_normdata.npy"
-normdata_path = data_dir + data_name + "_normdatacond.npy"
+samples_path = data_dir + data_name + "_data.npy"
+labels_path = data_dir + data_name +"_cond.npy"
+normdata_path = data_dir + data_name + "_data_wtn.npy"
+normdata_path = data_dir + data_name + "_cond_wtn.npy"
 
 # Run flags
 newdata = True     #make new data for this run (only needs to happen once)

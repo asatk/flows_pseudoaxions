@@ -3,24 +3,43 @@ import tensorflow as tf
 from tensorflow import keras as tfk
 import tensorflow_probability as tfp
 from tensorflow_probability import distributions as tfd
+from tensorflow_probability.python.distributions import TransformedDistribution
 from tensorflow_probability import bijectors as tfb
+from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as MAF
 import numpy as np
 
 import defs
 
-# This is simply a copy of the original "AutoregressiveNetwork" class in tfp.bijectors. The only reason we need to do this is that we want to apply a tanh
-# on the output log-scale when the Network is called. This allows for better regularization and helps with "inf" and "nan" values that otherwise would
-# frequently occur during training.
 class Made(tfb.AutoregressiveNetwork):
-    def __init__(self, params=None, event_shape=None, conditional=True, conditional_event_shape=None, conditional_input_layers="all_layers", hidden_units=None,
-                 input_order="left-to-right", hidden_degrees="equal", activation=None, use_bias=True,kernel_initializer="glorot_uniform", bias_initializer="zeros",
-                 kernel_regularizer=None, bias_regularizer=None, kernel_constraint=None, bias_constraint=None, validate_args=False, **kwargs):
+    '''
+    A duplicate of tfp.bijectors.AutoregressiveNetwork class with tanh applied
+    on the output log-scape. This is important for improved regularization and
+    "inf" and "nan" values that would otherwise often occur during training.
+    '''
+
+    def __init__(self, params=None, event_shape=None, conditional=True,
+                 conditional_event_shape=None,
+                 conditional_input_layers="all_layers", hidden_units=None,
+                 input_order="left-to-right", hidden_degrees="equal",
+                 activation=None, use_bias=True,
+                 kernel_initializer="glorot_uniform", bias_initializer="zeros",
+                 kernel_regularizer=None, bias_regularizer=None,
+                 kernel_constraint=None, bias_constraint=None,
+                 validate_args=False, **kwargs):
         
-        super().__init__(params=params, event_shape=event_shape, conditional=conditional, conditional_event_shape=conditional_event_shape,
-                         conditional_input_layers=conditional_input_layers, hidden_units=hidden_units, input_order=input_order, hidden_degrees=hidden_degrees,
-                         activation=activation, use_bias=use_bias, kernel_initializer=kernel_initializer, bias_initializer=bias_initializer,
-                         kernel_regularizer=kernel_regularizer, bias_regularizer=bias_regularizer, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
-                         validate_args=validate_args, **kwargs)
+        super().__init__(
+            params=params, event_shape=event_shape, conditional=conditional,
+            conditional_event_shape=conditional_event_shape,
+            conditional_input_layers=conditional_input_layers,
+            hidden_units=hidden_units, input_order=input_order,
+            hidden_degrees=hidden_degrees, activation=activation,
+            use_bias=use_bias, kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer,
+            kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer,
+            kernel_constraint=kernel_constraint,
+            bias_constraint=bias_constraint, validate_args=validate_args,
+            **kwargs)
         
         self.conditional = conditional
         self.conditional_event_shape = conditional_event_shape
@@ -48,7 +67,8 @@ class Made(tfb.AutoregressiveNetwork):
         
         return config
 
-def build_distribution(made_list: list, num_inputs: int, num_made: int=10, hidden_layers: int=1, hidden_units: int=128, cond_event_shape: tuple=None) -> tuple[tfd.TransformedDistribution, list[Any]]:
+def build_distribution(made_list: list, num_inputs: int, num_made: int=10,
+        hidden_layers: int=1, hidden_units: int=128, cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list[Any]]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
@@ -57,8 +77,7 @@ def build_distribution(made_list: list, num_inputs: int, num_made: int=10, hidde
     hidden_units_list = hidden_layers * [hidden_units]
     if len(made_list) == 0:
         for i in range(num_made):
-            made_list.append(tfb.MaskedAutoregressiveFlow(
-                    shift_and_log_scale_fn=Made(
+            made_list.append(MAF(shift_and_log_scale_fn=Made(
                             params=2, hidden_units=hidden_units_list,
                             event_shape=(num_inputs,), conditional=True,
                             conditional_event_shape=cond_event_shape,
@@ -68,7 +87,7 @@ def build_distribution(made_list: list, num_inputs: int, num_made: int=10, hidde
     else:
         made_list_temp = []
         for i, made in enumerate(made_list):
-            made_list_temp.append(tfb.MaskedAutoregressiveFlow(shift_and_log_scale_fn=made, name=f"maf_{i}"))
+            made_list_temp.append(MAF(shift_and_log_scale_fn=made, name=f"maf_{i}"))
             made_list_temp.append(permutation)
 
         made_list = made_list_temp
@@ -77,7 +96,7 @@ def build_distribution(made_list: list, num_inputs: int, num_made: int=10, hidde
     made_chain = tfb.Chain(list(reversed(made_list[:-1])))
 
     # we want to transform to gaussian distribution with mean 0 and std 1 in latent space
-    distribution = tfd.TransformedDistribution(
+    distribution = TransformedDistribution(
         distribution=tfd.Sample(tfd.Normal(loc=0., scale=1.), sample_shape=[num_inputs]),
         bijector=made_chain)
     
@@ -123,14 +142,14 @@ def intermediate_flows_chain(made_list):
     feat_extraction_dists = []
 
     made_chain = tfb.Chain([])
-    dist = tfd.TransformedDistribution(
+    dist = TransformedDistribution(
         distribution=tfd.Sample(tfd.Normal(loc=0., scale=1.), sample_shape=[2]),
         bijector=made_chain)
     feat_extraction_dists.append(dist)
 
     for i in range(1, len(made_list_rev), 2):
         made_chain = tfb.Chain(made_list_rev[0:i])
-        dist = tfd.TransformedDistribution(
+        dist = TransformedDistribution(
             distribution=tfd.Sample(tfd.Normal(loc=0., scale=1.), sample_shape=[2]),
             bijector=made_chain)
         feat_extraction_dists.append(dist)

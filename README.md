@@ -1,12 +1,24 @@
 <!--flows README-->
 - [Current Bugs/Issues/"Features"](#current-bugsissuesfeatures)
+- [Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX)](#goals-of-flows-enriched-data-generation-for-high-energy-experiment-fedhex)
 - [Getting Started](#getting-started)
+  - [Generating Data](#generating-data)
   - [Running An Experiment](#running-an-experiment)
   - [Performing Analysis](#performing-analysis)
 
 # Current Bugs/Issues/"Features"
  - All information pertinent to a run is contained in `defs.py` and should be treated as read-only during a run. A copy of all of the run variables from `defs.py` are stored in `config.json` in the directory containing the rest of the saved model. Albeit convenient to have a large dictionary of constants at run time for all local modules to see, it makes running a new model a bit tedious, by way of having to entire a file and change a few constants for every new run. Realistically, constants should be constants. These other parameters should be stored as a separate configuration file and loaded globally into the program namespace. These could also be treated as command-line args or GUI toggles/entries. No telling what the future holds.
  - The checkpointing callback does not save exactly at the epoch interval desired. I think this is likely a rounding issue as it looks to save based on the n-th batch, not the n-th epoch. So dividing total data size by batchsize produces yields an extra training step in the epoch to finish the last batch/cover the remainder. The math for the saving frequency for ckpt does not take this into account. Perhaps find a way to align checkpointing with epochs, though this is more an aesthetic/meta-accuracy thing than critical to the model's success.
+
+# Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX) 
+
+Given a sparse collection of event distributions in an N-dimensional parameter space, we want to interpolate between the given distributions to generate new distributions
+
+For example, a hypothetical interaction between two particles, yielding a scalar $\Phi$ and pseudoaxion (pseudoscalar) $\omega$, can be modelled as such.
+
+![Sparse grid of distributions between which our framework can estimate an intermediate distribution by interpolating the features of nearby distributions.](plotroot.png "10x10 Sparse Grid of Reconstructed Particle Masses")
+
+We wish to get the accuracy to within ~1% of MCMC-generated data.
 
 # Getting Started
 
@@ -24,6 +36,10 @@ Create a new environment using (ana/mini)conda package manager:
 | tensorflow             | 2.11.1 |           |        |                                           |
 | tensorflow-probability | 0.19.0 |           |        |                                           |
 | uproot                 | 5.0.8  |           |        |                                           |
+
+## Generating Data
+
+The ```main.py``` script defines the main workflow for all necessary procedures in the normalizing flows pipeline. To start, the experiment will require training data, which can be generated or imported, depending on the use case. In the cases ```LINE``` and ```GRID```, samples come from various different 2D Gaussians according to the parameters in ```defs.py```. In the case of ```ROOT```, the data 'generation' is merely loading in samples from a .ROOT file, usually generated via MCMC for a given process.
 
 ## Running An Experiment
 

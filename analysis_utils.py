@@ -1,11 +1,18 @@
+'''
+Author: Anthony Atkinson
+Modified: 2023.07.07
+'''
+
+
 import math
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import multiprocessing as mp
 import numpy as np
+from numpy.typing import ArrayLike
 import os
-from scipy.stats import chisquare
-from typing import Any
+from scipy.stats import chisquare, kstest
+from typing import Any, Union
 
 import defs
 import data_utils
@@ -15,112 +22,222 @@ plt.rcParams.update({
     "font.family": "serif"
 })
 
-def analyze(distribution: Any, made_list: list[Any], gen_labels_path: str=None, losslog: str=None) -> None:
+ntools = 5
 
-    normdata_path = "%s/%s_normdata.npy"%(defs.data_dir, defs.data_name)
-    normdatacond_path = "%s/%s_normdatacond.npy"%(defs.data_dir, defs.data_name)
+def analyze(distribution: Any, made_list: list[Any], normdata_path: str,
+            normcond_path: str, trn_data_path: str, trn_cond_path: str,
+            gen_data_path: str=None, gen_cond_path: str=None,
+            losslog: str=None, tools: list[int]=None) -> None:
 
-    if gen_labels_path is None:
-        # whiten the label/convert to normalized net-friendly form
-        gen_labels = np.repeat([[2464, 5.125]], defs.ngen, axis=0) # arb. label
-        normdatacond = np.load(normdata_path, allow_pickle=True).item()
-        min_norm = normdatacond["min"]
-        max_norm = normdatacond["max"]
-        mean_norm = normdatacond["mean"]
-        std_norm = normdatacond["std"]
+    # Selection of tools used in analysis
+    if tools is None:
+        tools = list[range(0, ntools + 1)]
 
-        # manually whiten data from loaded params to convert a meaningful label
-        # into a regression label that the network will interpret correctly.
-        data_temp = (gen_labels - min_norm) / (max_norm - min_norm)
-        data_temp = np.log(1 / ((1 / data_temp) - 1))
-        gen_datacond = (data_temp - mean_norm) / std_norm
+    # Plotting paths
+    out_trn = defs.output_dir + "plottrn.png"
+    out_trn_i = defs.output_dir + "plottrn%03i.png"
+    out_trn_hist_i = defs.output_dir + "histtrn%03i.png"
+    out_gen = defs.output_dir + "plotgen.png"
+    out_gen_i = defs.output_dir + "plotgen%03i.png"
+    out_gen_hist_i = defs.output_dir + "histgen%03i.png"
+    out_flow_i = defs.output_dir + "plotgen_flow%02i.png"
 
-    else:
-        gen_datacond = np.load(gen_labels_path)
-        gen_labels = data_utils.unwhiten(gen_datacond, normdatacond_path)
+    # Make sure that the normalizing data are stored in agreement w/ convention
+    if not os.path.isfile(normdata_path):
+        print("Cannot locate the normalizing constants for data"+\
+              " located at `%s`. Do not separate this file from the rest of"+\
+              " the data it is generated with."%(normdata_path))
+        return
 
-    gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
-
-    # Define the conditional input (labels) for the flow to generate
-    current_kwargs = {}
-    for i in range(len(made_list) // 2):
-        current_kwargs[f"maf_{i}"] = {"conditional_input" : gen_datacond}
-
-    # Generate the data given the test labels!
-    gen_data = np.array(distribution.sample((gen_datacond.shape[0], ), bijector_kwargs=current_kwargs))
+    if not os.path.isfile(normcond_path):
+        print("Cannot locate the normalizing constants for conditional data"+\
+              " located at `%s`. Do not separate this file from the rest of"+\
+              " the data it is generated with."%(normcond_path))
+        return
     
-    gen_samples = data_utils.unwhiten(gen_data, normdata_path)
-    gen_labels = data_utils.unwhiten(gen_datacond, normdatacond_path)
 
-    out_path_all = defs.output_dir + "plotgen.png"
-    out_path_i = defs.output_dir + "plotgen%03i.png"
-    out_path_i_hist = defs.output_dir + "histgen%03i.png"
-    out_path_flow_i = defs.output_dir + "plotgen_flow%02i.png"
-
-    # >>> plot generated data
-    grouped_samples = [gen_samples[gen_inverse_unique == i] for i in range(len(gen_labels_unique))]
-    out_paths = [out_path_i%i for i in range(len(gen_labels_unique))]
-    out_paths_hist = [out_path_i_hist%i for i in range(len(gen_labels_unique))]
-
-    # Plot scatter plots and histograms for each label
-    with mp.Pool(defs.nworkers) as pool:
-        pool.starmap(plot_one, zip(grouped_samples, gen_labels_unique, out_paths))
-        pool.starmap(hist_one, zip(grouped_samples, gen_labels_unique, out_paths_hist))
-        pool.starmap(sample_stats, zip(grouped_samples, gen_labels_unique))
-    # >>> plot generated data
-
-    # Plot scatter plot for all data
-    plot_all(gen_samples, gen_labels, out_path_all, show=True)
-    
-    # Generate samples for each intermediate flow
-    flow_distributions = flowmodel.intermediate_flows_chain(made_list)
-    for i, dist in enumerate(flow_distributions):
-        gen_data_flow_i = dist.sample((gen_datacond.shape[0], ), bijector_kwargs=current_kwargs)
-        gen_samples_flow_i = data_utils.unwhiten(gen_data_flow_i, normdata_path)
-        title_flow_i = "Generated Output (N = %i) up to Flow %i"%(gen_datacond.shape[0], i)
-        plot_all(gen_samples_flow_i, gen_labels_unique, out_path_flow_i%i, title=title_flow_i)
-
-    # Plot losses during training (first epoch exlucded b/c it usually has very high loss)
-    losses = np.load(losslog)
-    loss_out_path = defs.output_dir + "/loss.png"
-    plot_losses(losses[1:], loss_out_path=loss_out_path, show=True)
-
-    # Numerical analysis
-    # ...
-
-def analyze_train_data(samples_path, labels_path, normdata_path, normdatacond_path):
-
-    # Load unwhitened training data
-    samples = data_utils.unwhiten(np.load(samples_path), normdata_path)
-    labels = data_utils.unwhiten(np.load(labels_path), normdatacond_path)
+    # ++++ Prepare Training Data ++++ #
+    # Load dewhitened training data
+    samples = data_utils.dewhiten(np.load(trn_data_path), normdata_path)
+    labels = data_utils.dewhiten(np.load(trn_cond_path), normcond_path)
 
     # Group samples & labels by unique label
-    labelsunique, inverseunique = np.unique(labels, return_inverse=True, axis=0)
-
-    out_path_all = defs.output_dir + "plotreal.png"
-    out_path_i = defs.output_dir + "plotreal%03i.png"
-    out_path_i_hist = defs.output_dir + "histreal%03i.png"
+    labels_unique, inverse_unique = np.unique(labels, return_inverse=True, axis=0)
+    # ++++ Prepare Training Data ++++ #
     
-    # >>> plot training data
-    grouped_data = [samples[inverseunique == i] for i in range(len(labelsunique))]
-    out_paths = [out_path_i%i for i in range(len(labelsunique))]
-    out_paths_hist = [out_path_i_hist%i for i in range(len(labelsunique))]
 
-    # Plot scatter plots and histograms for each label
-    with mp.Pool(defs.nworkers) as pool:
-        pool.starmap(plot_one, zip(grouped_data, labelsunique, out_paths))
-        pool.starmap(hist_one, zip(grouped_data, labelsunique, out_paths_hist))
-    # >>> plot training data
+    # ++++ Prepare Generated Data ++++ #
+    # Obtain both net- and user-friendly versions of the conditional data
+    if gen_cond_path is None:
+        # This is a hardcoded label just to serve as an example.
+        gen_labels = np.repeat([[2464, 5.125]], defs.ngen, axis=0) # arb. label
+        gen_cond = data_utils.whiten(gen_labels, normcond_path, load_norm=True)
+    else:
+        # Load conditional data that is already whitened from file. These data
+        # need not be the  conditional data with which the network is trained.
+        gen_cond = np.load(gen_cond_path)
+        gen_labels = data_utils.dewhiten(gen_cond, normcond_path)
 
-    plot_all(samples, labelsunique, out_path_all)
+    # Make a list of the unique labels and a list of their occurrence in gen_labels
+    gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
+
+    # Generate net-friendly version of the data conditioned on provided labels
+    if gen_data_path is None:
+        # Define the conditional input for the flow to generate samples with at each flow
+        current_kwargs = {}
+        for i in range(len(made_list) // 2):
+            current_kwargs[f"maf_{i}"] = {"conditional_input" : gen_cond}
+
+        # Generate the data conditioned on the net-friendly labels
+        gen_data = np.array(distribution.sample((gen_cond.shape[0], ), bijector_kwargs=current_kwargs))
+    # Load net-friendly version of the data
+    else:
+        gen_data = np.load(gen_data_path)
+    
+    # Transform generated data from net-friendly to user-friendly
+    gen_samples = data_utils.dewhiten(gen_data, normdata_path)
+    # ++++ Prepare Generated Data ++++ #
 
 
-def sample_stats(data: np.ndarray, data_cond: np.ndarray) -> None:
+    ### TOOL 1 - Plot Training Data and Network Output
+    if 1 in tools:
+        # ++++ Plot training data ++++ #
+        grouped_data = [samples[inverse_unique == i] for i in range(len(labels_unique))]
+        out_list = [out_trn_i%i for i in range(len(labels_unique))]
+        out_list_hist = [out_trn_hist_i%i for i in range(len(labels_unique))]
+        trnplot_kwargs = make_genplot_kwargs(labels_unique, len(samples))
+
+        # Plot scatter plots and histograms for each label
+        with mp.Pool(defs.nworkers) as pool:
+            pool.starmap(plot_one, zip(grouped_data, labels_unique, out_list, trnplot_kwargs))
+            pool.starmap(hist_one, zip(grouped_data, labels_unique, out_list_hist, trnplot_kwargs))
+        # ++++ Plot training data ++++ #
+
+
+        # ++++ Plot generated data ++++ #
+        grouped_samples = [gen_samples[gen_inverse_unique == i] for i in range(len(gen_labels_unique))]
+        out_list = [out_gen_i%i for i in range(len(gen_labels_unique))]
+        out_list_hist = [out_gen_hist_i%i for i in range(len(gen_labels_unique))]
+        genplot_kwargs = make_genplot_kwargs(gen_labels_unique, len(gen_samples))
+
+        # Plot scatter plots and histograms for each label
+        with mp.Pool(defs.nworkers) as pool:
+            pool.starmap(plot_one, zip(grouped_samples, gen_labels_unique, out_list, genplot_kwargs))
+            pool.starmap(hist_one, zip(grouped_samples, gen_labels_unique, out_list_hist, genplot_kwargs))
+            # pool.starmap(print_stats, zip(grouped_samples, gen_labels_unique))
+        # ++++ Plot generated data ++++ #
+
+        # Plot scatter plot for all training and generated data
+        plot_all(samples, labels_unique, out_trn, show=True)
+        plot_all(gen_samples, gen_labels, out_gen, show=True)
+    
+
+    ### TOOL 2 - Plot Intermediate Output (assess each bijector's contribution)
+    if 2 in tools:
+        # Generate samples for each intermediate flow
+        flow_distributions = flowmodel.intermediate_flows_chain(made_list)
+        for i, dist in enumerate(flow_distributions):
+            gen_data_flow_i = dist.sample((gen_cond.shape[0], ), bijector_kwargs=current_kwargs)
+            gen_samples_flow_i = data_utils.dewhiten(gen_data_flow_i, normdata_path)
+            title_flow_i = "Generated Output (N = %i) up to Flow %i"%(gen_cond.shape[0], i)
+            plot_all(gen_samples_flow_i, gen_labels_unique, out_flow_i%i, title=title_flow_i)
+
+
+    ### TOOL 3 - Track Training Losses (assess ability to converge)
+    if 3 in tools:
+        # Plot losses during training
+        losses = np.load(losslog)
+        loss_out_path = defs.output_dir + "/loss.png"
+        plot_losses(losses, loss_out_path=loss_out_path, show=True)
+
+
+    ### TOOL 4 - Histograms
+    if 4 in tools:
+        # Projections
+        axes = [0]  # project along x-axis/phi-axis
+        bins = [50] # bin along axis of interest
+        ndim = 1    # dimension of space into which the samples are projected
+        samples_h = project(samples, axes=axes, bins=bins, ndim=ndim)
+        gen_samples_h = project(gen_samples, axes=axes, bins=bins, ndim=ndim)
+        
+        # Residuals
+        res = residual(gen_samples, samples, axes=axes, bins=bins)
+        
+
+    ### TOOL 5 - Numerical Fit Tests
+    if 5 in tools:
+        # Chi^2 test
+        axes = [0]
+        bins = [50]
+        ndim = 1
+        test_chi(gen_samples, samples, axes=axes, bins=bins, ndim=ndim)
+        # Kolmogorov-Smirnov test
+    
+
+def make_trnplot_kwargs(labels: np.ndarray, nsamples: int) -> list[dict]:
+    '''
+    labels: conditional data that will be plotted
+    '''
+
+    labels_u = np.unqiue(labels)
+    nlabels = len(labels_u)
+    
+    d = {
+        "xlabel": "Reconstructed $\Phi$ Mass (GeV)",
+        "ylabel": "Reconstructed $\omega$ Mass (GeV)",
+        "label_c": "red",
+        "label_s": 20,
+        "label_alpha": 1.0,
+        "sample_c": "green",
+        "sample_s": 20,
+        "sample_alpha": 0.5,
+        "xlim": (defs.phi_min, defs.phi_max),
+        "ylim": (defs.omega_min, defs.omega_max)
+    }
+
+    d_list = [d] * nlabels
+    for label, label_dict in zip(labels_u, d_list):
+        title = "Training Samples for (%g, %.3f)\nN = %i"%(label[0], label[1], nsamples)
+        label_dict.update({"title": title})
+    
+    return d_list
+
+
+def make_genplot_kwargs(labels: np.ndarray, nsamples: int) -> list[dict]:
+    '''
+    labels: conditional data that will be plotted
+    '''
+
+    labels_u = np.unqiue(labels)
+    nlabels = len(labels_u)
+    
+    d = {
+        "xlabel": "Reconstructed $\Phi$ Mass (GeV)",
+        "ylabel": "Reconstructed $\omega$ Mass (GeV)",
+        "label_c": "red",
+        "label_s": 20,
+        "label_alpha": 1.0,
+        "sample_c": "green",
+        "sample_s": 20,
+        "sample_alpha": 0.5,
+        "xlim": (defs.phi_min, defs.phi_max),
+        "ylim": (defs.omega_min, defs.omega_max)
+    }
+
+    d_list = [d] * nlabels
+    for label, label_dict in zip(labels_u, d_list):
+        title = "Generated Samples for (%g, %.3f)\nN = %i"%(label[0], label[1], nsamples)
+        label_dict.update({"title": title})
+    
+    return d_list
+
+
+def print_stats(data: np.ndarray, cond: np.ndarray) -> None:
     '''
     Print some basic statistics of the sample data corresponding to one label
 
-    data: samples
-    data_cond: labels
+    data: dewhitened data
+    cond: dewhitened conditional data
     '''
 
     sample_mean = np.mean(data, axis=0)
@@ -129,7 +246,7 @@ def sample_stats(data: np.ndarray, data_cond: np.ndarray) -> None:
     sample_min = np.min(data, axis=0)
     sample_max = np.max(data, axis=0)
 
-    print_str = "\n----------\nLABEL: %s"%repr(data_cond) + \
+    print_str = "\n----------\nLABEL: %s"%repr(cond) + \
                 "\nnum events: %i"%data.shape[0] + \
                 "\nsample mean: %s"%repr(sample_mean) + \
                 "\nsample median: %s"%repr(sample_median) + \
@@ -151,11 +268,20 @@ def plot_losses(losses, loss_out_path: str=None, show=False, **kwargs):
     xlabel = "Epoch" if "xlabel" not in kwkeys else kwargs["xlabel"]
     ylabel = "Loss (Negative Log Likelihood)" if "ylabel" not in kwkeys else kwargs["ylabel"]
 
+    # Separate loss data into positive and negative losses
+    losses_nonneg = losses[losses[:, 1] >= 0]
+    losses_neg = np.abs(losses[losses[:, 1] < 0])
+    turnover_epoch = losses[losses[:, 1] < 0][0, 0]
+
+    # Plot losses
     fig, ax = plt.subplots()
-    ax.plot(losses[:,0], losses[:, 1])
+    ax.semilogy(losses_nonneg[:, 0], losses_nonneg[:, 1], c="blue", label="positive loss")
+    ax.semilogy(losses_neg[:, 0], losses_neg[:, 1], c="red", label="negative loss")
+    ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:,1 ]), colors=["gray"], linestyles="dashed")
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    ax.legend()
     ax.xaxis.get_major_locator().set_params(integer=True)
 
     if loss_out_path is not None:
@@ -166,9 +292,13 @@ def plot_losses(losses, loss_out_path: str=None, show=False, **kwargs):
     else:
         plt.close()
 
+
 def plot_one(samples, label, outpath, **kwargs):
     '''
     Scatter plot of samples corresponding to a single label
+    samples: 2D coordinate pairs of events in parameter space
+    label: 2D coordinate pair of label associated to events
+    outpath: location to where the plot is saved
     '''
 
     # Parse keyword arguments
@@ -201,6 +331,9 @@ def plot_one(samples, label, outpath, **kwargs):
 def hist_one(samples, label, outpath, **kwargs):
     '''
     Scatter plot of samples corresponding to a single label
+    samples: 2D coordinate pairs of events in parameter space
+    label: 2D coordinate pair of label associated to events
+    outpath: location to where the plot is saved
     '''
     
     # Parse keyword arguments
@@ -233,6 +366,10 @@ def hist_one(samples, label, outpath, **kwargs):
 def plot_all(samples, labels_unique, outpath, show=False, **kwargs):
     '''
     Scatter plot of samples for all labels
+    samples: 2D coordinate pairs of events in parameter space
+    labels: 2D coordinate pairs of all labels associated to events
+    outpath: location to where the plot is saved
+    show: flag indicating whether or not to show plot after generating it
     '''
 
     # Parse keyword arguments
@@ -265,9 +402,98 @@ def plot_all(samples, labels_unique, outpath, show=False, **kwargs):
     else:
         plt.close()
 
+
 def _gausformula(x, mean, var) -> np.ndarray:
     return np.divide(np.exp(np.multiply(-1./2 / var, np.square(np.subtract(x, mean)))),
                      np.sqrt(2 * np.pi * var))
+
+def residual(p: np.ndarray, q: np.ndarray, axes: list[int], bins: list[int]):
+    p_h, _ = project(p, axes, bins, ndim=1)
+    q_h, _ = project(q, axes, bins, ndim=1)
+    res = p_h - q_h
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, fig_kw={"figsize": (10, 15)})
+
+    ax1.plot(p_h, label="P")
+    ax1.plot(q_h, label="Q")
+    ax1.title("Distributions 'P' and 'Q'")
+    ax1.legend()
+
+    ax2.plot(res)
+    ax2.title("Residuals of 'P' - 'Q'")
+
+    fig.show()
+
+    return res
+
+def residual2d(p: np.ndarray, q: np.ndarray, axes: list[int], bins: list[int]):
+    p_h, _ = project(p, axes, bins, ndim=2)
+    q_h, _ = project(q, axes, bins, ndim=2)
+
+    res = p_h - q_h
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, fig_kw={"figsize": (10, 15)})
+
+    ax1.imshow(p_h)
+    ax1.title("Distribution 'P'")
+
+    ax2.imshow(res)
+    ax2.title("Residuals of 'P' - 'Q'")
+
+    ax3.imshow(res)
+    ax3.title("Distribution 'Q'")
+
+    fig.show()
+
+    # add colorbar
+
+    return res
+
+def test_chi(obs: np.ndarray, exp: np.ndarray, axes: list[int], bins: list[int], ndim: int=1):
+    '''
+    Perform chi^2 Goodness-of-fit test on a sample of observed data against
+    expected data. 2D chi^2 test is performed by flattening the arrays into 1D
+    and then comparing bin-wise.
+    '''
+    obs_h, _ = project(obs, axes, bins, ndim=ndim)
+    exp_h, _ = project(exp, axes, bins, ndim=ndim)
+
+    if ndim == 2:
+        obs_h = obs_h.flatten()
+        exp_h = exp_h.flatten()
+
+    chi2, pval = chisquare(obs_h, exp_h, ddof=1)
+
+    return chi2, pval
+
+def test_ks(obs: np.ndarray, exp: np.ndarray, axes: list[int], bins: list[int]):
+    obs_h, _ = project(obs, axes, bins, ndim=1)
+    exp_h, _ = project(exp, axes, bins, ndim=1)
+        
+    result = kstest(obs_h, exp_h)
+    return result.statistic, result.pvalue
+
+def project(samples: np.ndarray, axes: list[int], bins: list[int], ndim: int=1) -> tuple[np.ndarray, np.ndarray]:
+    '''
+    Project sample points into a histogram of 1 or 2 dimensions.
+    '''
+
+    assert len(axes) <= samples.ndim
+    assert len(axes) == len(bins)
+
+    points = samples[: axes]
+
+    if ndim == 1:
+        hist, xedges = np.histogram(points, bins)
+        edges = np.array([xedges])
+    elif ndim == 2:
+        hist, xedges, yedges = np.histogram2d(points, bins)
+        edges = np.concatenate(([xedges], [yedges]), axis=0)
+    else:
+        print("Will not project points into bins of dimension 3 or greater")
+        return (None, None)
+
+    return hist, edges
 
 
 # next let's compare two dists. chi^2 or KL divergence
