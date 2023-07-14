@@ -24,18 +24,19 @@ We wish to get the accuracy to within ~1% of MCMC-generated data.
 
 Create a new environment using (ana/mini)conda package manager:
 
-```conda create -n flows3.10 python=3.10 matplotlib numpy scikit-learn scipy tensorflow-base tensorflow-probability uproot```
+```conda create -n flows3.10 python=3.10 matplotlib numpy scikit-learn scipy tensorflow-base tensorflow-probability uproot wrapt=1.14```
 
-| req. pkgs              | vsn    | opt. pkgs | vsn    | use                                       |
-| :--------------------- | :----- | :-------- | :----- | :---------------------------------------- |
-| matplotlib             | 3.7.1  | bokeh     | 3.1.1  | interactive visualization                 |
-| numpy                  | 1.25.0 | jupyter   | 1.0.0  | good to test short bits of code           |
-| python                 | 3.10   | pytorch   | 2.0.0  | may port network to pytorch               |
-| scikit-learn           | 1.2.2  | seaborn   | 0.12.2 | good for visualization of scientific data |
-| scipy                  | 1.10.1 |           |        |                                           |
-| tensorflow             | 2.11.1 |           |        |                                           |
-| tensorflow-probability | 0.19.0 |           |        |                                           |
-| uproot                 | 5.0.8  |           |        |                                           |
+| req. pkgs              | vsn    | use                                    | opt. pkgs | vsn    | use                                       |
+| :--------------------- | :----- | :------------------------------------- | :-------- | :----- | :---------------------------------------- |
+| matplotlib             | 3.7.1  | plotting lib                           | bokeh     | 3.1.1  | interactive visualization                 |
+| numpy                  | 1.25.0 | array lib                              | jupyter   | 1.0.0  | good to test short bits of code           |
+| python                 | 3.10   | stable versions of each lib for 3.10   | pytorch   | 2.0.0  | may port network to pytorch               |
+| scikit-learn           | 1.2.2  | ML utilities for analysis and training | seaborn   | 0.12.2 | good for visualization of scientific data |
+| scipy                  | 1.10.1 | same as above                          |           |        |
+| tensorflow             | 2.11.1 | network architecture and training      |           |        |
+| tensorflow-probability | 0.19.0 | flows-specific framework               |           |        |
+| uproot                 | 5.0.8  | reads and converts .ROOT to .npy       |           |        |
+| wrapt                  | 1.14.0 | not sure but it breaks if 1.15         |           |        |
 
 ## Generating Data
 
@@ -114,6 +115,11 @@ Output from analysis is stored in ```./output```
 
 When loading ROOT data, the loading algorithm traverses the entire directory tree looking for .ROOT files. Make sure there are ONLY directories or .ROOT files in the entire directory tree specified by ```root_dir```
 
+Look how a model network performs:
+![The training loss of the flow as it trains. Plotted is the loss on the y-axis in log-scale against the epoch at which it was recorded on the x-axis. When the losss becomes negative, its absolute value is plotted.](loss.png "The training losses of a flow with 10 bijections, 1 layer and 128 parameters per bijection.")
+
+
+
 ## Performing Analysis
 
 Running ```python main.py``` saves the version of ```defs.py``` at run-time in the same directory where the model is stored.
@@ -121,3 +127,5 @@ Running ```python main.py``` saves the version of ```defs.py``` at run-time in t
 Change relevant parameters in defs before running the model or analysis script. Make sure to update ALL parameters relevant to a run. This includes flags, directories, 'names' (used to locate data or models), epochs for re-training, etc.
 
 Check out ```analysis_example.py``` for an example analysis or ```analysis_utils.analyze```, the default analysis behavior when running ```main.py```. There are other examples in this github that were more so tools for testing behavior of different functions, libraries, and the network itself, but I figure they may be useful to look at as guides. They may not run; these scripts serve as examples of the pipeline of a subset of instructions in different parts of the flow workflow, i.e., data generation/loading, plotting, comparing generated data to training data.
+
+![Analysis of training and generated data for the same label. Four plots are shown: the top row showing each distribution individually, the bottom row showing them on the same plot with the same scale and their binned residuals.](res.png "Comparison between training and generated data on label (Phi=2464, Omega=5.125)")

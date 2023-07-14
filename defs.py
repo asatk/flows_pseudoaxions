@@ -1,4 +1,7 @@
 """
+Author: Anthony Atkinson
+Modified: 2023.07.14
+
 This module holds definitions of (hyper)parameters used to define the
 geometry and data of the problem being interpolated.
 """
@@ -7,23 +10,20 @@ geometry and data of the problem being interpolated.
 # Paths
 data_dir = "data/"                      #dir where training data are stored
 model_dir = "model/"                    #dir where model is saved (ckpts too)
-output_dir = "output/07-08_box1_test1/" #dir where a given analysis outputs
+output_dir = "output/07-14_test2/"      #dir where a given analysis outputs
 root_dir = "root/10x10box_10k_jun2023"  #location where .ROOT files are stored
-flow_name = "07-08_TEST01"               #name of model
-data_name = "07-08_TEST01"               #name used by data files of interest
+flow_name = "07-14_TEST02"               #name of model
+data_name = "07-14_TEST02"               #name used by data files of interest
 
 flow_path = model_dir + flow_name
-samples_path = data_dir + data_name + "_data.npy"
-labels_path = data_dir + data_name +"_cond.npy"
-normdata_path = data_dir + data_name + "_data_wtn.npy"
-normdata_path = data_dir + data_name + "_cond_wtn.npy"
+training_data_path = data_dir + data_name + "_training_data.npy"
+loss_log = flow_path + "/loss_log.npy"
 
 # Run flags
 newdata = True     #make new data for this run (only needs to happen once)
 normalize = True    #pre-process samples and labels (usually `True`)
 newmodel = True     #make a new model
 savemodel = True   #save the used model in its intermediate and final states
-saveloss = True     #save model losses after each epoch
 newanalysis = True  #perform a new analysis
 
 ### --- MODE CONSTANTS --- ###
@@ -43,7 +43,7 @@ ndim_label = 2              #dimensions of the conditional data (labels)
 base_lr = 1.0e-3            #learning rate range: keep btwn [1e-3, 1e-6]
 end_lr = 1.0e-4             #ditto
 batch_size = 1024           #num samples in each epoch's minibatches
-ngen = 500                  #num samples for analysis/generation
+ngen = 841                  #num samples for analysis/generation
 nmade = 10                  #MADE blocks in masked autoregressive flow
 hidden_layers = 1           #num layers in the MADE block (flow complexity)
 hidden_units = 128          #num parameters in each MADE block layer

@@ -1,18 +1,23 @@
-'''
+"""
+Author: Anthony Atkinson
+Modified: 2023.07.14
+
 Utility functions for generating, loading, and manipulating training data for
 a normalizing flow.
-
-Author: Anthony Atkinson
-'''
+"""
 
 import numpy as np
 import os
 import uproot as up
 
 import defs
-import utils as myutils
+from .io import LOG_WARN, LOG_FATAL
+from .io import print_msg
 
 # Strings necessary for reading data from a ROOT TTree
+# These are likely to change - highly contingent upon what the cuts and vars
+# are for each run.
+# >>>> find more flexible way to load ROOT data. Maybe a config file or parser
 up.default_library = "np"
 cutstr = "CBL_Region == 1"
 phistr = "CBL_RecoPhi_mass"
@@ -23,32 +28,28 @@ ptidxstr = "CBL_RecoPhi_photonindex"
 labelphistr = "GenPhi_mass"
 labelomegastr = "GenOmega_mass"
 
-def makedata(mode: int, data_path: str=None, normalize: bool=False) -> tuple[np.ndarray, np.ndarray]:
-    '''
+def makedata(mode: int, load_data_path: str=None, save_data_path: str=None,
+             use_whiten: bool=True, overwrite: bool=False) -> tuple[np.ndarray, np.ndarray]:
+    # TODO update docstring
+    """
     Make data for a given training scenario. Returns both training samples 
     and conditional data (labels) associated with each sample.
 
     mode, int
         The scenario for which data are needed for training or testing
-    data_path, str
+    load_data_path, str
         The path to non-numpy data that are loaded and compiled, e.g., .ROOT
-    normalize, bool
-        Whether or not to normalize the data before they are saved or used
-        for training.
-    '''
+    save_data_path, str
+        The path to the location where the newly-made data are stored
+    use_whiten, bool
+        Whether or not to use whitening in pre-processing the before they are
+        saved or used for training. This is PREFFERED and will almost always
+        yield signicantly improved results and quicker, stabler learning.
+    """
 
-    if mode == defs.ROOT and data_path is None:
-        print("no path provided to load data")
-        exit()
-
-    data_dir = defs.data_dir
-    run_name = defs.data_name
+    if mode == defs.ROOT and load_data_path is None:
+        print_msg("No path provided to load data (mode=ROOT)", level=LOG_FATAL)
     
-    data_path = "%s/%s_data.npy"%(data_dir, run_name)
-    cond_path = "%s/%s_cond.npy"%(data_dir, run_name)
-    normdata_path = "%s/%s_data_wtn.npy"%(data_dir, run_name)
-    normdatacond_path = "%s/%s_cond_wtn.npy"%(data_dir, run_name)
-
     if mode == defs.LINE:
         
         # assign the 1D labels for each gaussian
@@ -81,29 +82,28 @@ def makedata(mode: int, data_path: str=None, normalize: bool=False) -> tuple[np.
             sample_gaussian(defs.nsamp, labels_unique, means, covs)
 
     elif mode == defs.ROOT:
-
-        samples, labels = _loadallroot(data_path, defs.event_threshold)
+        samples, labels = _loadallroot(load_data_path, defs.event_threshold)
     
     else:
-
-        print("This type of training data generation is not implemented")
-        exit()
-    
-    # >>> NEED TO WHITEN or center+scale REGRESSION LABELS!
+        print_msg("This type of training data generation is not implemented",
+                  level=LOG_FATAL)
 
     # Whiten data (shift and scale s.t. data has 0 mean and unit width)
-    if normalize:
-        data = whiten(samples, normdata_path)
-        data_cond = whiten(labels, normdatacond_path)
+    if use_whiten:
+        data, whiten_data = whiten(samples)
+        cond, whiten_cond = whiten(labels)
     else:
         data = samples
-        data_cond = labels
+        cond = labels
+        whiten_data = {}
+        whiten_cond = {}
     
-    # Save the ready-for-training data and their labels
-    np.save(cond_path, data_cond)
-    np.save(data_path, data)
+    # Save the ready-for-training data, their rergression labels and whitening data
+    save_data_dict(save_data_path, data=data, cond=cond,
+                   whiten_data=whiten_data, whiten_cond=whiten_cond,
+                   overwrite=overwrite)
     
-    return data, data_cond
+    return data, cond
 
 
 def _loadallroot(data_dir: str, event_threshold: float=0.01) -> np.ndarray:
@@ -247,8 +247,9 @@ def sample_gaussian(nsamples: int, labels_unique: np.ndarray, means: np.ndarray,
     return samples, labels
 
 
-def whiten(data: np.ndarray, normdata_path: str, load_norm: bool=False) -> np.ndarray:
-    '''
+def whiten(data: np.ndarray, whiten_data: dict|None=None) -> tuple[np.ndarray, dict[str, float]]:
+    # TODO update docstring
+    """
     Standardize the data to make it more 'network-friendly'. Whitened data
     are significantly easier to train on and show benefits in results. The
     statistics used to whiten the data are stored, to be used later for
@@ -270,15 +271,16 @@ def whiten(data: np.ndarray, normdata_path: str, load_norm: bool=False) -> np.nd
         flag indicating whether or not to load the whitening constants from the
         path specified. If False, these constants are determined in calculation
         of the whitening transformation and saved at normdata_path.
-    '''
+    """
 
-    if load_norm:
-        normdata = np.load(normdata_path)
-        min_norm = normdata["min"]
-        max_norm = normdata["max"]
+    if whiten_data is not None:
+        min_norm = whiten_data["min"]
+        max_norm = whiten_data["max"]
     else:
-        min_norm = np.min(data, axis=0) - 1e-5
-        max_norm = np.max(data, axis=0) + 1e-5
+        # perhaps make epsilon propto max - min
+        epsilon = 1e-5
+        min_norm = np.min(data, axis=0) - epsilon
+        max_norm = np.max(data, axis=0) + epsilon
 
     # confine data to the unit interval [0., 1.]
     data_unit = (data - min_norm) / (max_norm - min_norm)
@@ -286,25 +288,23 @@ def whiten(data: np.ndarray, normdata_path: str, load_norm: bool=False) -> np.nd
     # apply 'logit' transform to map unit interval to (-inf, +inf)
     data_logit = np.log(1 / ((1 / data_unit) - 1))
 
-    if load_norm:
-        mean_norm = normdata["mean"]
-        std_norm = normdata["std"]
+    if whiten_data is not None:
+        mean_norm = whiten_data["mean"]
+        std_norm = whiten_data["std"]
     else:
         mean_norm = np.mean(data_logit, axis=0)
         std_norm = np.std(data_logit, axis=0)
+        whiten_data = {"min": min_norm, "max": max_norm, "mean": mean_norm, "std": std_norm}
 
     # standardize the data to have 0 mean and unit variance
     data_norm = (data_logit - mean_norm) / std_norm
  
-    if not load_norm:
-        normdata = {"min": min_norm, "max": max_norm, "mean": mean_norm, "std": std_norm}
-        if normdata_path is not None:
-            np.save(normdata_path, normdata)
+    return data_norm, whiten_data
 
-    return data_norm
 
-def dewhiten(data_norm: np.ndarray, normdata_path) -> np.ndarray:
-    '''
+def dewhiten(data_norm: np.ndarray, whiten_data: dict) -> np.ndarray:
+    # TODO update docstring
+    """
     Invert the standardized data that were output from the network into values
     that are interpretable to the end user. The inverse transformation must use
     the same min/max/mean/std values that were used to first whiten the data
@@ -315,18 +315,12 @@ def dewhiten(data_norm: np.ndarray, normdata_path) -> np.ndarray:
     normdata_path: str, None
         path to file where whitening data are stored for unwhitening. Returns
         array of zeroes with same shape as data_norm if not a valid path.
-    '''
+    """
 
-    if normdata_path is None or not os.path.isfile(normdata_path):
-        print("`normdata_path` cannot be None - must be a valid path to" + \
-              "unwhitening data. Returning zeroes.")
-        return np.zeros_like(data_norm)
-    normdata = np.load(normdata_path, allow_pickle=True).item()
-
-    min_norm = normdata["min"]
-    max_norm = normdata["max"]
-    mean_norm = normdata["mean"]
-    std_norm = normdata["std"]
+    min_norm = whiten_data["min"]
+    max_norm = whiten_data["max"]
+    mean_norm = whiten_data["mean"]
+    std_norm = whiten_data["std"]
 
     # invert the standardized values from the mean and std
     data_logit = data_norm * std_norm + mean_norm
@@ -339,6 +333,100 @@ def dewhiten(data_norm: np.ndarray, normdata_path) -> np.ndarray:
 
     return data
 
+
+def load_data_dict(data_dict_path: str, ret_dict: bool=False) -> tuple[np.ndarray, np.ndarray, dict, dict]|dict:
+    # TODO docstring
+    """
+    Loads any data present in the provided path. These data are limited to
+    training or generated data, conditional data, and whitening constants for
+    both of these. Data are loaded for each keyword from the set "data",
+    "cond", "whiten_data", and "whiten_cond" that is found. If the path does
+    not point to a valid .npy file, an empty dictionary is returned. If any of
+    the data corresponding to each keyword cannot be found, an empty analog of
+    each type is returned. If specified by the option `ret_dict`, just the
+    dictionary loaded from the file is returned.
+
+    data_dict_path: str, path to the .npy file containing a dictionary of,
+        at most, data, conditional data, and whitening data for both. If the
+        path is not valid, an empty dictionary is returned.
+
+    ret_dict : bool (default=False), returns the dictionary loaded from the
+        specified path rather than a tuple of all of the data. May be useful
+        if custom data are stored and wished to be retrieved later in a file
+        that also holds the usual `data_dict` data.
+    """
+
+
+    if not os.path.isfile(data_dict_path):
+        print_msg(f"The path '{data_dict_path}' does not exist or is not a file..." +
+                  "returning an empty dictionary...", level=LOG_WARN)
+        return {}
+    
+    data_dict: dict= np.load(data_dict_path, allow_pickle=True).item()
+    
+    if ret_dict:
+        return data_dict
+    else:
+        kws = data_dict.keys()
+
+        if "data" in kws:
+            data = data_dict["data"]
+        else:
+            data = np.empty((0, ))
+            print_msg("Data not found " +
+                      f"in file {data_dict_path}... returning an empty " +
+                      "array...", level=LOG_WARN)
+        
+        if "cond" in kws:
+            cond = data_dict["cond"]
+        else:
+            cond = np.empty((0, ))
+            print_msg("Conditional data not found " +
+                      f"in file {data_dict_path}... returning an empty " +
+                      "array...", level=LOG_WARN)
+
+        if "whiten_data" in kws:
+            whiten_data = data_dict["whiten_data"]
+        else:
+            whiten_data = {}
+            print_msg("Whitening constants for data not found " +
+                      f"in file {data_dict_path}... returning an empty " +
+                      "dictionary...", level=LOG_WARN)
+
+        if "whiten_cond" in kws:
+            whiten_cond = data_dict["whiten_cond"]
+        else:
+            whiten_cond = {}
+            print_msg("Whitening constants for conditional data not found " +
+                      f"in file {data_dict_path}... returning an empty " +
+                      "dictionary...", level=LOG_WARN)
+        
+        return data, cond, whiten_data, whiten_cond
+
+
+def save_data_dict(data_dict_path: str, data: np.ndarray, cond: np.ndarray,
+                   whiten_data: dict, whiten_cond: dict, overwrite: bool=False,
+                   **kwargs) -> None:
+    # TODO update docstring
+    # TODO change any positional args to args w default values. No data
+    # have to be saved necessarily.
+    """
+    Saves any data present in the provided path. 
+    
+    data_dict_path: str, path to the .npy file where the dictionary containing
+        the specified data will all together be stored
+    """
+
+    if not overwrite and os.path.isfile(data_dict_path):
+        print_msg(f"The path '{data_dict_path}' exists already and will not"
+                  " be overwritten. No data will be saved...", level=LOG_WARN)
+        return
+    
+    training_data = {"data": data, "cond": cond, "whiten_data": whiten_data,
+                     "whiten_cond": whiten_cond, **kwargs}
+
+    np.save(data_dict_path, training_data,allow_pickle=True)
+    
 
 def train_labels_circle(n_train: int) -> np.ndarray:
     return np.array([np.linspace(0, 2*np.pi, n_train, endpoint=False)]).T
@@ -386,8 +474,8 @@ def cov_change_linear(labels: np.ndarray, cov: np.ndarray) -> list[np.ndarray]:
         [0., (1 + (defs.ycov_change_linear_max_factor - 1) * label[1] / defs.ymax)]])) for label in labels]
 
 def cov_change_skew(labels: np.ndarray, cov: np.ndarray) -> list[np.ndarray]:
-    '''
-    NOT IMPLEMENTED PROPERLY
-    '''
+    """
+    REVIEW IMPLEMENTATION FOR ACCURACY
+    """
     n_labels = len(labels)
     return [np.dot(cov, np.array([[np.cos(i * np.pi/n_labels), np.sin(i * np.pi/n_labels)], [-np.sin(i * np.pi/n_labels), np.cos(i * np.pi/n_labels)]])) for i in range(n_labels)]

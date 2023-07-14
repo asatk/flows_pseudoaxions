@@ -2,7 +2,5 @@
 Author: Anthony Atkinson
 Modified: 2023.07.14
 
-Main package
+Utility functions subpackage
 """
-
-from defs import *

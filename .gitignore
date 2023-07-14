@@ -8,7 +8,7 @@
 /root/
 *.code-workspace
 *.h5
-*.png
 *.txt
 *GAN.py
 flow_tutorial.ipynb
+*.pyc

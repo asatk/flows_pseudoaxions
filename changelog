@@ -1,5 +1,74 @@
+-------------------------------------------------------------------------------
+
+FEDHEX 0.0.0
+DATE 2023.07.14
+AUTHOR asatk
+
+overall trying to reduce dependence on `defs.py` and filenames. trying to make
+framework as flexible as possible while remaining stable.
+
+TLDR; all data and information pertaining to training are stored in a single
+file. Primitive logging capabilities added. Loading and saving data should be
+mostly encapsulated by internal methods - data I/O made much simpler.
+Instead of exposing a lot of the behind-the-scenes details of the network and
+its model/representation, any interactions with it are currently or in the
+process of being packaged behind a simple interface via the `utils` package.
+
+README needs updating for how to use the new methods.
+Documentation TODOs need to be completed
+general improvement TODOs need completing as well but docu comes first
+This update IS STABLE! Until the next bug is found...
+
+analysis_utils.py
+> analyze
+    updated use of `whiten` and `dewhiten` on to accept the loaded whitening
+    constants.
+    analysis tools all correctly run.
+
+data_utils.py
+> dewhiten
+    no longer accepts file, only dict of whitening constants
+
+> makedata
+    when generating new data, ALL DATA ARE STORED IN THE SAME FILE IN ONE DICT.
+    keywords associated with each thing are:
+        "data" the training data generated in this fn's call
+        "cond" the conditional data generated in this fn's call
+        "whiten_data" the whitening constants for the data
+        "whiten_cond" the whitening constants for the conditional data
+> whiten
+    no longer saves the whitening consants - this is left only to makedata
+    whiten some new data (i.e., new labels, new samples)
+    returns the whitened data and a dict of the constants (which can be saved)
+    no longer accepts file, only dict of whitening constants if they are needed
+
+main.py
+> main
+    changed arguments for train
+    changed names of vars to be more accurate
+
+README
+> Getting Started
+    added uses for each required library, not just optional ones.
+
+train_utils.py
+> train
+    method signature now different: no more savemodel/saveloss argument. To
+    save a model or losses during training, paths to each respective location
+    must be provided. If no location is provided, NOTHING is saved.
+
+utils.py
+> print_msg
+    added a method to log/print a message at a time. maybe provide logging to a
+    file in order to save output more elegantly. maybe will print stack trace
+    in a nicer/custom format. can choose log level and message type. fatal
+    messages always print stack trace.
+
+-------------------------------------------------------------------------------
+
 FEDHEX 0.0.0
 DATE 2023.07.08
+AUTHOR asatk
 
 main.py
 > main
