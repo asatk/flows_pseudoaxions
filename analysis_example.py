@@ -1,12 +1,21 @@
+"""
+Author: Anthony Atkinson
+Modified: 2023.07.14
+
+Example analysis script showcasing the tools available in this package to study
+the results and performance of the flow.
+"""
+
+
 from matplotlib import pyplot as plt
 import multiprocessing as mp
 import numpy as np
 import os
 from tensorflow import keras
 
-import data_utils as dutils
+import utils.data as dutils
 import defs
-import flowmodel
+import flows.flowmodel as flowmodel
 
 ### Plotting functions (usually stuffed away in some module)
 

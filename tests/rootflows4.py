@@ -5,7 +5,7 @@ import numpy as np
 from tensorflow import keras
 
 import defs
-import flowmodel
+import flows.flowmodel as flowmodel
 
 import rootflows2
 

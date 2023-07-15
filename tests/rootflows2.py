@@ -3,9 +3,9 @@ from matplotlib import pyplot as plt
 import multiprocessing as mp
 import numpy as np
 
-import analysis_utils
+import utils.analysis as analysis
 import defs
-import data_utils
+import utils.data as data
 
 def makeplot(samples, label, outpath):
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     normdatapath = "data/root_norm_2023-06-24_run01.npy"
 
     if loadnew:
-        samples, labels = data_utils._loadallroot(datadir)
+        samples, labels = data._loadallroot(datadir)
         np.save(datapath, samples)
         np.save(labelpath, labels)
     else:

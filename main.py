@@ -1,42 +1,73 @@
-import argparse    
-import numpy as np
+"""
+Author: Anthony Atkinson
+Modified: 2023.07.15
 
-import analysis_utils as autils
-import data_utils as dutils
+Primary training script for running all procedures related to flows. This
+includes data generation, model training, and analysis.
+"""
+
+# hopefully get rid of those stupid tensorflow warnings
+from absl import logging as absl_logging
+from os import environ
+absl_logging.set_verbosity(absl_logging.ERROR)
+environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
 import defs
-import train_utils as tutils
-import utils as myutils
+import utils.analysis as autils
+import utils.data as dutils
+import utils.train as tutils
+import utils.io as ioutils
+from utils.train import MODE_LINE, MODE_GRID, MODE_ROOT
 
 if __name__ == "__main__":
 
     # Perform initial checks of paths
-    myutils.init()
+    load_data_path = defs.root_dir
+    training_data_path = defs.training_data_path
+    config_path = defs.flow_path + "/config.json"
+
+    mode = MODE_ROOT
+
+
+    ioutils.init(output_dir=defs.output_dir, data_path=training_data_path,
+                 flow_path=defs.flow_path, root_dir=defs.root_dir,
+                 model_dir=defs.model_dir, newdata=defs.newdata,
+                 newmodel=defs.newmodel, newanalysis=defs.newanalysis,
+                 seed=defs.seed)
+    ioutils.save_config(config_path, defs.__dict__)
 
     # Make new training data and save it
     if defs.newdata:
-        samples, labels = dutils.makedata(defs.mode, data_path=defs.root_dir, normalize=defs.normalize)
+
+        # use-case-specific args
+        args = {"event_threshold": defs.event_threshold}
+        data, cond = dutils.makedata(mode, load_data_path=load_data_path,
+                                     save_data_path=training_data_path,
+                                     use_whiten=defs.normalize, overwrite=True,
+                                     **args)
 
     # Load training data
     else:
-        samples = np.load(defs.samples_path)
-        labels = np.load(defs.labels_path)
+        data, cond, _, _ = dutils.load_data_dict(training_data_path)
 
-    model, distribution, made_list = tutils.getmodel(defs.flow_path)
+    
+    model, distribution, made_list = tutils.getmodel(flow_path=defs.flow_path, newmodel=True)
 
     if defs.newmodel or defs.epoch_resume != 0:
-        tutils.train(model, samples, labels, defs.flow_path)
+        save_freq = int(defs.epoch_save * len(data) / defs.batch_size)
+        tutils.train(model, data, cond, defs.nepochs, defs.batch_size,
+                     flow_path=defs.flow_path, loss_path=defs.loss_log,
+                     save_freq=save_freq)
 
     if defs.newanalysis:
-        normdata_path = "%s/%s_data_wtn.npy"%(defs.data_dir, defs.data_name)
-        normcond_path = "%s/%s_cond_wtn.npy"%(defs.data_dir, defs.data_name)
-        trn_data_path = "%s/%s_data.npy"%(defs.data_dir, defs.data_name)
-        trn_cond_path = "%s/%s_cond.npy"%(defs.data_dir, defs.data_name)
-        gen_data_path = None
-        # gen_datacond_path = None
-        gen_cond_path = "%s/%s_labels.npy"%(defs.data_dir, defs.data_name)
-        losslog = defs.flow_path + "/losslog.npy"
+        generated_data_path = None
+        loss_log = defs.loss_log
 
-        autils.analyze(distribution, made_list, normdata_path, normcond_path,
-                       trn_data_path, trn_cond_path,
-                       gen_data_path=gen_data_path,
-                       gen_cond_path=gen_cond_path, losslog=losslog)
+        tools = [1, 3, 4, 5]
+        lims = ((defs.phi_min, defs.phi_max), (defs.omega_min, defs.omega_max))
+
+        autils.analyze(
+            distribution, made_list, training_data_path, ngen=defs.ngen,
+            lims=lims, generated_data_path=generated_data_path, tools=tools,
+            loss_log=loss_log, output_dir=defs.output_dir,
+            nworkers=defs.nworkers)

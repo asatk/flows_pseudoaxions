@@ -1,4 +1,7 @@
 """
+Author: Anthony Atkinson
+Modified: 2023.07.15
+
 This module holds definitions of (hyper)parameters used to define the
 geometry and data of the problem being interpolated.
 """
@@ -7,30 +10,22 @@ geometry and data of the problem being interpolated.
 # Paths
 data_dir = "data/"                      #dir where training data are stored
 model_dir = "model/"                    #dir where model is saved (ckpts too)
-output_dir = "output/07-08_box1_test1/" #dir where a given analysis outputs
+output_dir = "output/07-15_test3/"      #dir where a given analysis outputs
 root_dir = "root/10x10box_10k_jun2023"  #location where .ROOT files are stored
-flow_name = "07-08_TEST01"               #name of model
-data_name = "07-08_TEST01"               #name used by data files of interest
+flow_name = "07-15_TEST03"               #name of model
+data_name = "07-15_TEST01"               #name used by data files of interest
 
 flow_path = model_dir + flow_name
-samples_path = data_dir + data_name + "_data.npy"
-labels_path = data_dir + data_name +"_cond.npy"
-normdata_path = data_dir + data_name + "_data_wtn.npy"
-normdata_path = data_dir + data_name + "_cond_wtn.npy"
+training_data_path = data_dir + data_name + "_training_data.npy"
+loss_log = flow_path + "/loss_log.npy"
 
 # Run flags
-newdata = True     #make new data for this run (only needs to happen once)
-normalize = True    #pre-process samples and labels (usually `True`)
+newdata = False     #make new data for this run (only needs to happen once)
+normalize = True   #pre-process samples and labels (usually `True`)
 newmodel = True     #make a new model
 savemodel = True   #save the used model in its intermediate and final states
-saveloss = True     #save model losses after each epoch
 newanalysis = True  #perform a new analysis
 
-### --- MODE CONSTANTS --- ###
-LINE = 0    #2-D gaussians along a line
-GRID = 1    #2-D gaussians in a grid
-ROOT = 2    #2-D distributions in a grid, usually
-mode = ROOT
 
 ### --- Network Hyperparameters --- ###
 seed = 0xace1ace1ace1ace1   #seed for RNG

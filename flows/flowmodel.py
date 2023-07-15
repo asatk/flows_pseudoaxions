@@ -1,3 +1,15 @@
+"""
+Author: Anthony Atkinson
+Modified: 2023.07.14
+
+Contains the core flow model necessities. Building a flow, compiling one from
+scratch, the loss function, retrieving the intermediate flows, and the MADE
+block itself.
+
+It will likely contain other types of blocks/flows, in which case PyTorch is
+more favorable due to its exposed interface and customizability.
+"""
+
 from typing import Any
 import tensorflow as tf
 from tensorflow import keras as tfk
@@ -8,14 +20,12 @@ from tensorflow_probability import bijectors as tfb
 from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as MAF
 import numpy as np
 
-import defs
-
 class Made(tfb.AutoregressiveNetwork):
-    '''
+    """
     A duplicate of tfp.bijectors.AutoregressiveNetwork class with tanh applied
     on the output log-scape. This is important for improved regularization and
     "inf" and "nan" values that would otherwise often occur during training.
-    '''
+    """
 
     def __init__(self, params=None, event_shape=None, conditional=True,
                  conditional_event_shape=None,
@@ -68,7 +78,8 @@ class Made(tfb.AutoregressiveNetwork):
         return config
 
 def build_distribution(made_list: list, num_inputs: int, num_made: int=10,
-        hidden_layers: int=1, hidden_units: int=128, cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list[Any]]:
+        hidden_layers: int=1, hidden_units: int=128,
+        cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
@@ -102,26 +113,42 @@ def build_distribution(made_list: list, num_inputs: int, num_made: int=10,
     
     return distribution, made_list
 
-def compile_MAF_model(num_made, num_inputs, num_cond_inputs=None, hidden_layers=1, hidden_units=128) -> tuple[tfk.Model, Any, list[Any]]:
+def compile_MAF_model(num_made: int, num_inputs: int,
+        num_cond_inputs: int=None, hidden_layers: int=1, hidden_units: int=128,
+        lr_tuple: tuple=(1e-3, 1e-4, 100)) -> tuple[tfk.Model, Any, list[Any]]:
+    # TODO add docstring though this is mostly an internal method - do later
+    """
+    Build new model from scratch
+    """
 
-    made_list = []
-    distribution, made_list = build_distribution(made_list, num_inputs, hidden_layers=hidden_layers, hidden_units=hidden_units, cond_event_shape=(num_cond_inputs, ), num_made=num_made)
+    # Define optimizer/learning rate function
+    base_lr, end_lr, decay_steps = lr_tuple
+    learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(
+            initial_learning_rate=base_lr, decay_steps=decay_steps,
+            end_learning_rate=end_lr, power=0.5, cycle=True)
     
+    # Build model layers and compile
+    made_list = []
+    distribution, made_list = build_distribution(made_list, num_inputs,
+            hidden_layers=hidden_layers, hidden_units=hidden_units,
+            cond_event_shape=(num_cond_inputs, ), num_made=num_made)
+    
+    # Data input layers
     x_ = tfk.layers.Input(shape=(num_inputs,), name="aux_input")
     input_list = [x_]
 
+    # Conditional data input laters
     c_ = tfk.layers.Input(shape=(num_cond_inputs,), name="cond_input")
     input_list.append(c_)
 
+    # Feed conditional data to MAFs
     current_kwargs = {}
     for i in range(num_made):
         current_kwargs[f"maf_{i}"] = {"conditional_input" : c_}
     
+    # Log-likelihood output of distribution is network output (loss)
     log_prob_ = distribution.log_prob(x_, bijector_kwargs=current_kwargs)
-  
     model = tfk.Model(input_list, log_prob_)
-    learning_rate_fn = tfk.optimizers.schedules.PolynomialDecay(
-            defs.base_lr, defs.decay_steps, defs.end_lr, power=0.5, cycle=True)
     model.compile(
             optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
             loss=lossfn)
@@ -132,10 +159,11 @@ def lossfn(x, logprob):
     return -logprob
 
 def intermediate_flows_chain(made_list):
-    '''
+    """
     Separate each step of the flow into individual distributions in order to
     samples from and test each bijection's output.
-    '''
+    """
+
     # reverse the list of made blocks to unpack in generating direction
     made_list_rev = list(reversed(made_list[:-1]))
 
