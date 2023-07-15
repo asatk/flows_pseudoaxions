@@ -1,3 +1,13 @@
+FEDHEX 0.0.0
+DATE 2023.07.15
+AUTHOR asatk
+
+dont forget to address the issue ab tf 2.12.1/2.11.0 and wrapt 1.14...
+ - flows env vs gan env has a huge diff in runtime
+
+mostly removed dependence of methods on defs.py of `utils` modules
+needed to change some method calls as a result
+
 -------------------------------------------------------------------------------
 
 FEDHEX 0.0.0

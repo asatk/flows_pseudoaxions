@@ -1,6 +1,6 @@
 """
 Author: Anthony Atkinson
-Modified: 2023.07.14
+Modified: 2023.07.15
 
 Utility functions for generating, loading, and manipulating training data for
 a normalizing flow.
@@ -10,9 +10,10 @@ import numpy as np
 import os
 import uproot as up
 
-import defs
+from .constants import DEFAULT_SEED
 from .io import LOG_WARN, LOG_FATAL
 from .io import print_msg
+from .train import MODE_LINE, MODE_GRID, MODE_ROOT
 
 # Strings necessary for reading data from a ROOT TTree
 # These are likely to change - highly contingent upon what the cuts and vars
@@ -29,7 +30,7 @@ labelphistr = "GenPhi_mass"
 labelomegastr = "GenOmega_mass"
 
 def makedata(mode: int, load_data_path: str=None, save_data_path: str=None,
-             use_whiten: bool=True, overwrite: bool=False) -> tuple[np.ndarray, np.ndarray]:
+             use_whiten: bool=True, overwrite: bool=False, **kwargs) -> tuple[np.ndarray, np.ndarray]:
     # TODO update docstring
     """
     Make data for a given training scenario. Returns both training samples 
@@ -47,42 +48,49 @@ def makedata(mode: int, load_data_path: str=None, save_data_path: str=None,
         yield signicantly improved results and quicker, stabler learning.
     """
 
-    if mode == defs.ROOT and load_data_path is None:
+    if mode == MODE_ROOT and load_data_path is None:
         print_msg("No path provided to load data (mode=ROOT)", level=LOG_FATAL)
     
-    if mode == defs.LINE:
-        
+    ngausx = kwargs.get("ngausx", 10)
+    ngausy = kwargs.get("ngausy", 10)
+    val = kwargs.get("val", 0.5)
+    sigma_gaus = kwargs.get("sigma_gaus", 0.05)
+    nsamp = kwargs.get("nsamp", 1e3)
+    event_threshold = kwargs.get("event_threshold", 0.01)
+
+    if mode == MODE_LINE:
+
         # assign the 1D labels for each gaussian
-        labels_unique = train_labels_line_1d(defs.ngausx)
+        labels_unique = train_labels_line_1d(ngausx)
         # determine the center of each gaussian that will be sampled
-        means = means_line_1d(labels_unique, defs.val)
+        means = means_line_1d(labels_unique, val)
 
         # generate cov mtx for each gaussian
-        cov_indv = cov_xy(defs.sigma_gaus)
+        cov_indv = cov_xy(sigma_gaus)
         covs = cov_change_none(means, cov_indv)
 
         # sample each gaussian and pair each sample with its corresponding label
         samples, labels = \
-            sample_gaussian(defs.nsamp, labels_unique, means, covs)
+            sample_gaussian(nsamp, labels_unique, means, covs)
     
-    elif mode == defs.GRID:
+    elif mode == MODE_GRID:
 
         # assign the 2D labels for each gaussian
-        labels_unique = train_labels_grid_2d(defs.ngausx, defs.ngausy)
+        labels_unique = train_labels_grid_2d(ngausx, ngausy)
         # determine the center of each gaussian that will be sampled
         means = means_grid_2d(labels_unique)
 
         # generate cov mtx for each gaussian
-        # gaus_cov_indv = myutils.cov_skew(defs.sigma_gaus, defs.sigma_gaus/2., defs.sigma_gaus/2., defs.sigma_gaus)
-        cov_indv = cov_xy(defs.sigma_gaus)
+        # gaus_cov_indv = myutils.cov_skew(sigma_gaus, sigma_gaus/2., sigma_gaus/2., sigma_gaus)
+        cov_indv = cov_xy(sigma_gaus)
         covs = cov_change_none(means, cov_indv)
         
         # sample each gaussian and pair each sample with its corresponding label
         samples, labels = \
-            sample_gaussian(defs.nsamp, labels_unique, means, covs)
+            sample_gaussian(nsamp, labels_unique, means, covs)
 
-    elif mode == defs.ROOT:
-        samples, labels = _loadallroot(load_data_path, defs.event_threshold)
+    elif mode == MODE_ROOT:
+        samples, labels = _loadallroot(load_data_path, event_threshold)
     
     else:
         print_msg("This type of training data generation is not implemented",
@@ -111,6 +119,7 @@ def _loadallroot(data_dir: str, event_threshold: float=0.01) -> np.ndarray:
     Recursively loads all of the .ROOT files in the entire subdirectory tree
     located at `data_dir` into a numpy array
     """
+    # TODO make sure it only looks at files w .ROOT extensions or dirs
     samples = np.empty((0, 2))
     labels = np.empty((0, 2))
     with os.scandir(data_dir) as d:
@@ -208,7 +217,9 @@ def _loadoneroot(data_path: str, event_threshold: float=0.01) -> np.ndarray:
     return samples, labels
 
 
-def sample_gaussian(nsamples: int, labels_unique: np.ndarray, means: np.ndarray, cov_mtxs: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+def sample_gaussian(nsamples: int, labels_unique: np.ndarray,
+                    means: np.ndarray, cov_mtxs: list[np.ndarray],
+                    seed: int=DEFAULT_SEED) -> tuple[np.ndarray, np.ndarray]:
     """
     Generates training samples distributed according to the Gaussians described
     by `means` and `cov_mtxs` which each correspond to a given training label
@@ -222,11 +233,12 @@ def sample_gaussian(nsamples: int, labels_unique: np.ndarray, means: np.ndarray,
     cov_mtxs
         list of cov. matrix corresponding to each label
     """
+    
 
     assert len(labels_unique) == len(means)
     assert len(labels_unique) == len(cov_mtxs)
 
-    rng = np.random.default_rng(defs.seed)
+    rng = np.random.default_rng(seed)
 
     ndim = cov_mtxs[0].shape[-1]
     ndim_label = labels_unique.shape[-1]
@@ -464,14 +476,14 @@ def cov_skew(cov11: float, cov12: float, cov21: float=None, cov22: float=None) -
 def cov_change_none(labels: np.ndarray, cov: np.ndarray) -> np.ndarray:
     return np.repeat([cov], len(labels), axis=0)
 
-def cov_change_radial(labels: np.ndarray, cov: np.ndarray):
+def cov_change_radial(labels: np.ndarray, cov: np.ndarray, cov_change_linear_max_factor: float, extent: float):
     return [np.dot(cov, 
-        np.eye(2) * (1 + (defs.xcov_change_linear_max_factor - 1) * label[0] / defs.xmax)) for label in labels]
+        np.eye(2) * (1 + (cov_change_linear_max_factor - 1) * label[0] / extent)) for label in labels]
 
-def cov_change_linear(labels: np.ndarray, cov: np.ndarray) -> list[np.ndarray]:
+def cov_change_linear(labels: np.ndarray, cov: np.ndarray, xcov_change_linear_max_factor: float, ycov_change_linear_max_factor: float, xextent: float, yextent: float) -> list[np.ndarray]:
     return [np.dot(cov, 
-        np.array([[(1 + (defs.xcov_change_linear_max_factor - 1) * label[0] / defs.xmax), 0.], 
-        [0., (1 + (defs.ycov_change_linear_max_factor - 1) * label[1] / defs.ymax)]])) for label in labels]
+        np.array([[(1 + (xcov_change_linear_max_factor - 1) * label[0] / xextent), 0.], 
+        [0., (1 + (ycov_change_linear_max_factor - 1) * label[1] / yextent)]])) for label in labels]
 
 def cov_change_skew(labels: np.ndarray, cov: np.ndarray) -> list[np.ndarray]:
     """

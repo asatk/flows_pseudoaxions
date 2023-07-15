@@ -1,6 +1,6 @@
 """
 Author: Anthony Atkinson
-Modified: 2023.07.14
+Modified: 2023.07.15
 
 Definitions of general-purpose utility functions. These include I/O, logging,
 and initialization, for example.
@@ -17,15 +17,18 @@ import tensorflow as tf
 from tensorflow import keras
 from textwrap import fill as twfill
 import traceback
+from typing import Any
 
-import defs
+from .constants import DEFAULT_SEED
+
+loglevel = 0
 
 LOG_INFO = 0
 LOG_DEBUG = 1
 LOG_WARN = 2
 LOG_ERROR = 3
 LOG_FATAL = 4
-loglevel = 0
+
 
 MSG_BOLD = 0
 MSG_QUIET = 1
@@ -62,7 +65,9 @@ msgs: list[str] = [
 
 def init(data_dir: str="data", model_dir: str="model",
          output_dir: str="output", root_dir: str="root",
-         data_path: str=None, flow_path: str=None):
+         data_path: str=None, flow_path: str=None,
+         newdata: bool=False, newmodel: bool=False, newanalysis: bool=False,
+         seed: int=DEFAULT_SEED):
     
     # maybe have diff idea of init. init data-gen differently from training
     # and these different from analysis. Prevents making directories pre-
@@ -70,8 +75,8 @@ def init(data_dir: str="data", model_dir: str="model",
     
     # TODO update docstring
     """
-    Initialize the training program. Perform all necessary checks before
-    running and analyzing a model.
+    Initialize the training program workspace. Perform all necessary checks
+    before running and analyzing a model.
     """
 
     # TODO make a function to repeat these same checking/deletion procedures
@@ -91,8 +96,8 @@ def init(data_dir: str="data", model_dir: str="model",
         if os.path.isfile(output_dir):
             print_msg("Invalid directory for 'output_dir' argument: " +
                       f"{output_dir}", level=LOG_FATAL)
-        os.mkdir(defs.output_dir)
-    elif defs.newanalysis:
+        os.mkdir(output_dir)
+    elif newanalysis:
         c = " " 
         while c not in ["y", "N"]:
             c = input("would you like to replace the analysis output saved at" +
@@ -117,7 +122,7 @@ def init(data_dir: str="data", model_dir: str="model",
         data_path = str(datetime.today())
 
     # Making new data
-    if os.path.isdir(data_path) and defs.newdata:
+    if os.path.isdir(data_path) and newdata:
         c = " " 
         while c not in ["y", "N"]:
             c = input("would you like to replace the data saved at " +
@@ -137,7 +142,7 @@ def init(data_dir: str="data", model_dir: str="model",
         flow_path = str(datetime.today())
 
     # Training a new model where model dir already exists
-    if os.path.isdir(flow_path) and defs.newmodel:
+    if os.path.isdir(flow_path) and newmodel:
         c = " " 
         while c not in ["y", "N"]:
             c = input("would you like to replace the model saved at " +
@@ -150,18 +155,20 @@ def init(data_dir: str="data", model_dir: str="model",
         print_msg(f"Removing the previous model at {flow_path}",
                       level=LOG_INFO)
         shutil.rmtree(flow_path)
-
-    # Loading a model from a dir that does not exist
-    elif not (os.path.isdir(flow_path) or defs.newmodel):
-            print_msg(f"Saved model directory {flow_path} does not exist",
-                  level=LOG_FATAL)
-
-    # Create directory for the new model
-    if defs.newmodel:
         os.mkdir(flow_path)
 
+    # Make a new model
+    elif not os.path.isdir(flow_path) and newmodel:
+        os.mkdir(flow_path)
+    
+    # Loading a model from a dir that does not exist - fatal error
+    else:
+        print_msg(f"Saved model directory {flow_path} does not exist",
+                level=LOG_FATAL)
+
     # Set the global random seed for tensorflow
-    tf.random.set_seed(defs.seed)
+    tf.random.set_seed(seed)
+
 
 def save_config(path: str, params_dict: dict):
     # Save configuration (state of 'defs.py') at run-time
@@ -222,7 +229,7 @@ def print_msg(msg: str, level: int=LOG_INFO, m_type: int=MSG_BOLD, time: datetim
     return time
 
 
-class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
+class SelectiveProgbarLogger(keras.callbacks.ProgbarLogger):
     """
     Progress bar that outputs at regularly-defined intervals.
     """
@@ -244,6 +251,19 @@ class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
             dt = tnow - self.tsart
             print("epoch begin: " + str(tnow) + " | time elapsed: " + str(dt))
         super().on_epoch_begin(epoch, *args, **kwargs)
+
+
+class Checkpointer(keras.callbacks.ModelCheckpoint):
+    """
+    Callback that saves keras SavedModel at regular epochs. This is mostly
+    a wrapper for the keras ModelCheckpoint callback with some explicit
+    defaults that cater to this architecture.
+    """
+
+    def __init__(self, filepath: str, verbose: int=1,
+                 save_freq: int|str="epoch"):
+        super().__init__(filepath=filepath, verbose=verbose,
+                         save_freq=save_freq, save_weights_only=False)
 
 
 class LossHistory(keras.callbacks.Callback):
