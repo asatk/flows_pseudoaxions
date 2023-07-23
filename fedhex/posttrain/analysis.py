@@ -13,10 +13,10 @@ import os
 from scipy.stats import chisquare, kstest
 from typing import Any
 
-import flows.flowmodel as flowmodel
-from . import data as dutils
-from .data import load_data_dict, save_data_dict, print_msg
-from .io import LOG_ERROR, LOG_FATAL
+from ..train.tf import MADEflow
+from ..io._path import LOG_ERROR, LOG_FATAL
+from .plot import hist_one, plot_all, plot_losses, plot_one, \
+    make_genplot_kwargs, make_trnplot_kwargs
 
 
 plt.rcParams.update({
@@ -97,6 +97,8 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     # Generate net-friendly version of the data conditioned on provided labels
     # Only generated new data if some is not already provided at loading
     if gen_data is None:
+        print(made_list)
+        print(len(made_list))
         # Define the conditional input for the flow to generate samples with at each flow
         current_kwargs = {}
         for i in range(len(made_list) // 2):
@@ -166,7 +168,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     ### TOOL 2 - Plot Intermediate Output (assess each bijector's contribution)
     if 2 in tools:
         # Generate samples for each intermediate flow
-        flow_distributions = flowmodel.intermediate_flows_chain(made_list)
+        flow_distributions = MADEflow.intermediate_flows_chain(made_list)
         for i, dist in enumerate(flow_distributions):
             gen_data_flow_i = dist.sample((gen_cond.shape[0], ), bijector_kwargs=current_kwargs)
             gen_samples_flow_i = dutils.dewhiten(gen_data_flow_i, whiten_data)
@@ -224,10 +226,13 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
 
         args = {"pname": pname, "qname": qname, "ptitle": ptitle,
                 "qtitle": qtitle, "xlabel": xlabel}
+        
+        plot_err = False
 
         # Chi^2 test
         chi2, pval = test_chi(gen_compare, trn_compare, axes=axes, bins=bins,
-                              ndim=ndim, h_range=h_range, out_path=out_chi, **args)
+                              ndim=ndim, h_range=h_range, out_path=out_chi,
+                              plot_err=plot_err, **args)
         print_msg("Chi^2 analysis comparing the generated samples to the" + 
                   " training samples yields: " +
                   f"chi={np.sqrt(chi2):3f}; p={pval:3f}")
@@ -235,6 +240,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     
 
 # This isn't the best way to do what I want but it does what I want so it stays
+# What it does: finds the labels shared by two sets (if any)
 def intersect_labels(labels_1: np.ndarray, labels_2: np.ndarray,
                      return_index: bool=False) -> np.ndarray:
     labels_int = []
@@ -268,63 +274,6 @@ def intersect_labels(labels_1: np.ndarray, labels_2: np.ndarray,
     return labels_int
 
 
-def make_trnplot_kwargs(labels_u: np.ndarray, grouped_data: np.ndarray, nsamples: int, out_path: str, lims: tuple[tuple]) -> list[dict]:
-    '''
-    labels_u: conditional data that will be plotted
-    '''
-    
-
-    d = {
-        "xlabel": "Reconstructed $\Phi$ Mass (GeV)",
-        "ylabel": "Reconstructed $\omega$ Mass (GeV)",
-        "label_c": "red",
-        "label_s": 20,
-        "label_alpha": 1.0,
-        "sample_c": "green",
-        "sample_s": 20,
-        "sample_alpha": 0.5,
-        "xlim": lims[0],
-        "ylim": lims[1]
-    }
-
-    title_str = f"Generated Samples for (%g, %.3f)\nN = {nsamples}"
-
-    args_list = []
-    for i, label_u in enumerate(labels_u):
-        args_list.append([grouped_data[i], label_u, out_path%i,
-                          {"title": title_str%(label_u[0], label_u[1]), **d}])
-    
-    return args_list
-
-
-def make_genplot_kwargs(labels_u: np.ndarray, grouped_data: np.ndarray, nsamples: int, out_path: str, lims: tuple[tuple]) -> list[dict]:
-    '''
-    labels_u: unique conditional data that will be plotted
-    '''
-    
-    d = {
-        "xlabel": "Reconstructed $\Phi$ Mass (GeV)",
-        "ylabel": "Reconstructed $\omega$ Mass (GeV)",
-        "label_c": "orange",
-        "label_s": 20,
-        "label_alpha": 1.0,
-        "sample_c": "blue",
-        "sample_s": 20,
-        "sample_alpha": 0.5,
-        "xlim": lims[0],
-        "ylim": lims[1]
-    }
-
-    title_str = f"Generated Samples for (%g, %.3f)\nN = {nsamples}"
-
-    args_list = []
-    for i, label_u in enumerate(labels_u):
-        args_list.append([grouped_data[i], label_u, out_path%i,
-                          {"title": title_str%(label_u[0], label_u[1]), **d}])
-    
-    return args_list
-
-
 def print_stats(data: np.ndarray, cond: np.ndarray) -> None:
     '''
     Print some basic statistics of the sample data corresponding to one label
@@ -350,207 +299,10 @@ def print_stats(data: np.ndarray, cond: np.ndarray) -> None:
     print(print_str)
 
 
-def plot_losses(losses, out_path: str=None, show=False,
-                plot_args: dict={}) -> None:
-    '''
-    Plot loss (negative-log likelihood) of network over time (epochs)
-    '''
-    
-    # Parse keyword arguments
-    kwkeys = plot_args.keys()
-    title = "Loss vs. Epoch" if "title" not in kwkeys else plot_args["title"]
-    xlabel = "Epoch" if "xlabel" not in kwkeys else plot_args["xlabel"]
-    ylabel = "Loss (Negative Log Likelihood)" if "ylabel" not in kwkeys else plot_args["ylabel"]
-
-    # Separate loss data into positive and negative losses
-    losses_nonneg = losses[losses[:, 1] >= 0]
-    losses_neg = np.abs(losses[losses[:, 1] < 0])
-    turnover_epoch = losses[losses[:, 1] < 0][0, 0]
-
-    # Plot losses
-    fig, ax = plt.subplots()
-    ax.semilogy(losses_nonneg[:, 0], losses_nonneg[:, 1], c="blue", label="positive loss")
-    ax.semilogy(losses_neg[:, 0], losses_neg[:, 1], c="red", label="negative loss")
-    ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:,1 ]), colors=["gray"], linestyles="dashed")
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.legend()
-    ax.xaxis.get_major_locator().set_params(integer=True)
-
-    if out_path is not None:
-        fig.savefig(out_path)
-
-    if show:
-        plt.show()
-    else:
-        plt.close()
-
-
-def plot_one(samples: np.ndarray, label: np.ndarray, out_path: str=None,
-             plot_args: dict={}) -> None:
-    '''
-    Scatter plot of samples corresponding to a single label
-    samples: 2D coordinate pairs of events in parameter space
-    label: 2D coordinate pair of label associated to events
-    outpath: location to where the plot is saved
-    '''
-
-    xdata = samples[:, 0]
-    ydata = samples[:, 1]
-    xmin = np.min(xdata)
-    xmax = np.max(xdata)
-    ymin = np.min(ydata)
-    ymax = np.max(ydata)
-    xlbl = label[0]
-    ylbl = label[1]
-
-    default_title = f"Generated Samples for ({xlbl:g}, " + \
-                    f"{ylbl:.3f})\nN = {len(samples)}"
-    default_xlim = (xmin - 0.05 * (xmax - xmin), xmax + 0.05 * (xmax - xmin))
-    default_ylim = (ymin - 0.05 * (ymax - ymin), ymax + 0.05 * (ymax - ymin))
-
-    # Parse keyword arguments
-    title = plot_args.get("title", default_title)
-    xlabel = plot_args.get("xlabel", "Reconstructed $\Phi$ Mass (GeV)")
-    ylabel = plot_args.get("ylabel", "Reconstructed $\omega$ Mass (GeV)")
-    label_c = plot_args.get("label_c", "red")
-    label_s = plot_args.get("label_s", 20)
-    label_alpha = plot_args.get("label_alpha", 1.0)
-    sample_c = plot_args.get("sample_c", "green")
-    sample_s = plot_args.get("sample_s", 20)
-    sample_alpha = plot_args.get("sample_alpha", 0.5)
-    xlim = plot_args.get("xlim", default_xlim)
-    ylim = plot_args.get("ylim", default_ylim)
-
-
-    fig, ax = plt.subplots()
-    ax.scatter(xdata, ydata, c=sample_c, s=sample_s, alpha=sample_alpha)
-    ax.scatter(xlbl, ylbl, c=label_c, s=label_s, alpha=label_alpha)
-    ax.set_title(title)
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(visible=True)
-
-    if out_path is not None:
-        fig.savefig(out_path)
-    else:
-        fig.show()
-    plt.close()     #plots are closed immediately to save memory
-
-
-def hist_one(samples: np.ndarray, label: np.ndarray, out_path: str=None,
-             plot_args: dict={}) -> None:
-    '''
-    Scatter plot of samples corresponding to a single label
-    samples: 2D coordinate pairs of events in parameter space
-    label: 2D coordinate pair of label associated to events
-    outpath: location to where the plot is saved
-    '''
-
-    xdata = samples[:, 0]
-    ydata = samples[:, 1]
-    xmin = np.min(xdata)
-    xmax = np.max(xdata)
-    ymin = np.min(ydata)
-    ymax = np.max(ydata)
-    xlbl = label[0]
-    ylbl = label[1]
-
-    default_title = f"Generated Samples for ({xlbl:g}, " + \
-                    f"{ylbl:.3f})\nN = {len(samples)}"
-    default_xlim = (xmin - 0.05 * (xmax - xmin), xmax + 0.05 * (xmax - xmin))
-    default_ylim = (ymin - 0.05 * (ymax - ymin), ymax + 0.05 * (ymax - ymin))
-
-    # Parse keyword arguments
-    title = plot_args.get("title", default_title)
-    xlabel = plot_args.get("xlabel", "Reconstructed $\Phi$ Mass (GeV)")
-    ylabel = plot_args.get("ylabel", "Reconstructed $\omega$ Mass (GeV)")
-    label_c = plot_args.get("label_c", "red")
-    label_s = plot_args.get("label_s", 20)
-    label_alpha = plot_args.get("label_alpha", 1.0)
-    xlim = plot_args.get("xlim", default_xlim)
-    ylim = plot_args.get("ylim", default_ylim)
-    nbinsx = plot_args.get("nbinsx", 50)
-    nbinsy = plot_args.get("nbinsy", 50)
-
-    
-    fig, ax = plt.subplots()
-    _, _, _, img = ax.hist2d(xdata, ydata, bins=(nbinsx, nbinsy), range=(xlim, ylim))
-    plt.scatter(xlbl, ylbl, c=label_c, s=label_s, alpha=label_alpha)
-    ax.set_title(title)
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    fig.colorbar(img)
-    if out_path is not None:
-        fig.savefig(out_path)
-    else:
-        fig.show()
-    plt.close()     #plots are closed immediately to save memory
-
-
-def plot_all(samples: np.ndarray, labels_unique: np.ndarray, out_path: str,
-             show: bool=False, **kwargs) -> None:
-    '''
-    Scatter plot of samples for all labels
-    samples: 2D coordinate pairs of events in parameter space
-    labels: 2D coordinate pairs of all labels associated to events
-    outpath: location to where the plot is saved
-    show: flag indicating whether or not to show plot after generating it
-    '''
-
-    xdata = samples[:, 0]
-    ydata = samples[:, 1]
-    xmin = np.min(xdata)
-    xmax = np.max(xdata)
-    ymin = np.min(ydata)
-    ymax = np.max(ydata)
-    xlbls = labels_unique[:, 0]
-    ylbls = labels_unique[:, 1]
-
-    default_title = f"Generated Samples N = {len(samples)}"
-    default_xlim = (xmin - 0.05 * (xmax - xmin), xmin + 0.05 * (xmax - xmin))
-    default_ylim = (ymin - 0.05 * (ymax - ymin), ymin + 0.05 * (ymax - ymin))
-
-    # Parse keyword arguments
-    title = kwargs.get("title", default_title)
-    xlabel = kwargs.get("xlabel", "Reconstructed $\Phi$ Mass (GeV)")
-    ylabel = kwargs.get("ylabel", "Reconstructed $\omega$ Mass (GeV)")
-    label_c = kwargs.get("label_c", "red")
-    label_s = kwargs.get("label_s", 20)
-    label_alpha = kwargs.get("label_alpha", 1.0)
-    sample_c = kwargs.get("sample_c", "green")
-    sample_s = kwargs.get("sample_s", 20)
-    sample_alpha = kwargs.get("sample_alpha", 0.5)
-    xlim = kwargs.get("xlim", default_xlim)
-    ylim = kwargs.get("ylim", default_ylim)
-
-
-    fig, ax = plt.subplots()
-    ax.scatter(xdata, ydata, c=sample_c, s=sample_s, alpha=sample_alpha)
-    ax.scatter(xlbls, ylbls, c=label_c, s=label_s, alpha=label_alpha)
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(visible=True)
-    fig.savefig(out_path)
-    
-    if show:
-        plt.show()
-    else:
-        plt.close()
-
-
 def residual(p: np.ndarray, q: np.ndarray, axes: list[int],
              bins: list[int], h_range: tuple|None=None,
              norm: bool=False, ret_fig_ax: bool=False,
-             out_path: str=None, **kwargs) -> np.ndarray:
+             out_path: str=None, plot_err: bool=False, **kwargs) -> np.ndarray:
     
     kwkeys = kwargs.keys()
     pname = kwargs["pname"] if "pname" in kwkeys else "P"
@@ -562,12 +314,15 @@ def residual(p: np.ndarray, q: np.ndarray, axes: list[int],
     xlabel = kwargs["xlabel"] if "xlabel" in kwkeys else "X"
     ylabel = "density" if norm else "events"
 
-    p_h, p_e = project(p, axes, bins, ndim=1, h_range=h_range, norm=norm)
-    h_range = (np.min(p_e), np.max(p_e)) if h_range is None else h_range
+    p_h, edges = project(p, axes, bins, ndim=1, h_range=h_range, norm=norm)
+    h_range = (np.min(edges), np.max(edges)) if h_range is None else h_range
     q_h, _ = project(q, axes, bins, ndim=1, h_range=h_range, norm=norm)
     res = p_h - q_h
 
-    fig, ax = plt.subplots(2, 2, figsize=(10., 10.), sharex='all')
+    sharex = "all"
+    sharey = "row" if norm else "none"
+    fig, ax = plt.subplots(2, 2, figsize=(10., 10.), sharex=sharex,
+                           sharey=sharey)
 
     ax1: plt.Axes
     ax2: plt.Axes
@@ -577,19 +332,35 @@ def residual(p: np.ndarray, q: np.ndarray, axes: list[int],
     ((ax1, ax2), (ax3, ax4)) = ax
     ax1.set_xlim(h_range) # sets x limits for all plots
 
+    p_err = np.sqrt(p_h)
+    q_err = np.sqrt(p_h)
+    res_err = np.sqrt(p_h + q_h)
+    centers = np.ediff1d(edges)
+    nudge = 0.001 * (h_range[1] - h_range[0])
 
-    ax1.stairs(p_h, edges=p_e, color='C0', alpha=0.5, fill=False, linewidth=2.0)
+    # TODO for normalized data these sqrts might be messed up...
+
+    ax1.stairs(p_h, edges=edges, color='C0', alpha=0.5, fill=False, linewidth=2.0)
+    if plot_err:
+        ax1.errorbar(centers, p_h, yerr=p_err, ecolor='gray', elinewidth=1.0)
     ax1.set_title(ptitle)
     ax1.set_xlabel(xlabel)
     ax1.set_ylabel(ylabel)
 
-    ax2.stairs(q_h, edges=p_e, color='C1', alpha=0.5, fill=False, linewidth=2.0)
+    ax2.stairs(q_h, edges=edges, color='C1', alpha=0.5, fill=False, linewidth=2.0)
+    if plot_err:
+        ax2.errorbar(centers, q_h, yerr=q_err, ecolor='gray', elinewidth=1.0)
     ax2.set_title(qtitle)
     ax2.set_xlabel(xlabel)
     ax2.set_ylabel(ylabel)
 
-    ax3.stairs(p_h, edges=p_e, color='C0', alpha=0.5, fill=False, linewidth=2.0, label=pname)
-    ax3.stairs(q_h, edges=p_e, color='C1', alpha=0.5, fill=False, linewidth=2.0, label=qname)
+    
+
+    ax3.stairs(p_h, edges=edges, color='C0', alpha=0.5, fill=False, linewidth=2.0, label=pname)
+    ax3.stairs(q_h, edges=edges, color='C1', alpha=0.5, fill=False, linewidth=2.0, label=qname)
+    if plot_err:
+        ax3.errorbar(centers + nudge, p_h, yerr=p_err, ecolor='gray', elinewidth=1.0)
+        ax3.errorbar(centers - nudge, q_h, yerr=q_err, ecolor='gray', elinewidth=1.0)
     ax3.set_title(btitle)
     ax3.set_xlabel(xlabel)
     ax3.set_ylabel(ylabel)
@@ -602,8 +373,10 @@ def residual(p: np.ndarray, q: np.ndarray, axes: list[int],
     res_neg[res_neg >= 0] = np.nan
 
     ax4.hlines(y=0, xmin=h_range[0], xmax=h_range[1], colors='gray', alpha=0.8, linestyles='dashed')
-    ax4.stairs(res_pos, edges=p_e, color='cornflowerblue', linewidth=2.0)
-    ax4.stairs(res_neg, edges=p_e, color='red', linewidth=2.0)
+    ax4.stairs(res_pos, edges=edges, color='cornflowerblue', linewidth=2.0)
+    ax4.stairs(res_neg, edges=edges, color='red', linewidth=2.0)
+    if plot_err:
+        ax4.errorbar(centers, res, yerr=res_err, ecolor="black", elinewidth=1.0)
     ax4.set_title(rtitle)
     ax4.set_xlabel(xlabel)
     ax4.set_ylabel(ylabel)

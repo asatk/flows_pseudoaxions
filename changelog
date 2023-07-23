@@ -1,3 +1,36 @@
+FEDHEX 0.1.0
+DATE
+AUTHOR asatk
+
+began pkg restructuring
+ - objects for each service
+ - OOP design patterns (strategy, factory, managers, messages) could be
+   - implemented in the future
+ - currently using strategies for cov mtxs
+ - likely may use managers for services
+   - pros:
+     - can save config for each service
+     - can maintain separate states for diff runs
+     - encapsulate entire run in object
+   - cons:
+     - need to make objects for everything rather than function calls
+     - explicit specification of all service params
+     - need to ensure a robust architecture w/o interference from user
+ - will have different models (tf/pyt, RealNVP, MADE, etc)
+
+pretrain
+ - get data
+train
+ - get model
+posttrain
+ - get results
+
+io has load/save utilities
+utils has logging, callbacks
+
+
+-------------------------------------------------------------------------------
+
 FEDHEX 0.0.0
 DATE 2023.07.15
 AUTHOR asatk

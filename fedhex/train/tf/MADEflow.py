@@ -9,18 +9,21 @@ block itself.
 It will likely contain other types of blocks/flows, in which case PyTorch is
 more favorable due to its exposed interface and customizability.
 """
-
-from typing import Any
+import json
+import os
 import tensorflow as tf
 from tensorflow import keras as tfk
-import tensorflow_probability as tfp
-from tensorflow_probability import distributions as tfd
+from tensorflow.python.keras.models import load_model as kload_model, Model
+from tensorflow_probability.python import distributions as tfd
 from tensorflow_probability.python.distributions import TransformedDistribution
-from tensorflow_probability import bijectors as tfb
+from tensorflow_probability.python import bijectors as tfb
 from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as MAF
+from typing import Any
 import numpy as np
 
-class Made(tfb.AutoregressiveNetwork):
+from ...io._path import print_msg, LOG_WARN, LOG_FATAL
+
+class MADE(tfb.AutoregressiveNetwork):
     """
     A duplicate of tfp.bijectors.AutoregressiveNetwork class with tanh applied
     on the output log-scape. This is important for improved regularization and
@@ -77,31 +80,33 @@ class Made(tfb.AutoregressiveNetwork):
         
         return config
 
-def build_distribution(made_list: list, num_inputs: int, num_made: int=10,
-        hidden_layers: int=1, hidden_units: int=128,
+def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
+        hidden_layers: int=1, hidden_units: int=128, activation: str="relu",
         cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
     
     permutation = tfb.Permute(np.arange(0, num_inputs)[::-1])
-    hidden_units_list = hidden_layers * [hidden_units]
-    if len(made_list) == 0:
-        for i in range(num_made):
-            made_list.append(MAF(shift_and_log_scale_fn=Made(
-                            params=2, hidden_units=hidden_units_list,
-                            event_shape=(num_inputs,), conditional=True,
-                            conditional_event_shape=cond_event_shape,
-                            activation="relu", name=f"made_{i}"),
-                            name=f"maf_{i}"))
-            made_list.append(permutation)
-    else:
-        made_list_temp = []
-        for i, made in enumerate(made_list):
-            made_list_temp.append(MAF(shift_and_log_scale_fn=made, name=f"maf_{i}"))
-            made_list_temp.append(permutation)
+    
+    # Since we later want to use a Gaussian as our autoregressive distribution, we need to set
+    # "params" to 2, such that the MADE network can parameterize its mean and logarithmic standard deviation.
 
-        made_list = made_list_temp
+    if made_blocks is None or len(made_blocks) == 0:
+        made_blocks = []
+        hidden_units_list = hidden_layers * [hidden_units]
+        for i in range(num_made):
+            #TODO check that params should be 2 ^ refer to above from tutorial
+            made = MADE(params=2, hidden_units=hidden_units_list,
+                event_shape=(num_inputs,), conditional=True,
+                conditional_event_shape=cond_event_shape,
+                activation=activation, name=f"made_{i}")
+            made_blocks.append(made)
+    
+    made_list = []
+    for i, made in enumerate(made_blocks):
+        made_list.append(MAF(shift_and_log_scale_fn=made, name=f"maf_{i}"))
+        made_list.append(permutation)
 
     # make bijection from made layers; remove final permute layer
     made_chain = tfb.Chain(list(reversed(made_list[:-1])))
@@ -113,7 +118,7 @@ def build_distribution(made_list: list, num_inputs: int, num_made: int=10,
     
     return distribution, made_list
 
-def compile_MAF_model(num_made: int, num_inputs: int,
+def compile_MADE_model(num_made: int, num_inputs: int,
         num_cond_inputs: int=None, hidden_layers: int=1, hidden_units: int=128,
         lr_tuple: tuple=(1e-3, 1e-4, 100)) -> tuple[tfk.Model, Any, list[Any]]:
     # TODO add docstring though this is mostly an internal method - do later
@@ -129,7 +134,7 @@ def compile_MAF_model(num_made: int, num_inputs: int,
     
     # Build model layers and compile
     made_list = []
-    distribution, made_list = build_distribution(made_list, num_inputs,
+    distribution, made_list = build_MADE(made_list, num_inputs,
             hidden_layers=hidden_layers, hidden_units=hidden_units,
             cond_event_shape=(num_cond_inputs, ), num_made=num_made)
     
@@ -151,18 +156,23 @@ def compile_MAF_model(num_made: int, num_inputs: int,
     model = tfk.Model(input_list, log_prob_)
     model.compile(
             optimizer=tfk.optimizers.Adam(learning_rate=learning_rate_fn),
-            loss=lossfn)
+            loss=lossfn_MADE)
 
     return model, distribution, made_list
 
-def lossfn(x, logprob):
+def lossfn_MADE(x, logprob):
     return -logprob
 
-def intermediate_flows_chain(made_list):
+
+def intermediate_MADE(made_list):
+
     """
     Separate each step of the flow into individual distributions in order to
     samples from and test each bijection's output.
     """
+
+    # TODO check that model is being built correctly, esp when each MADE has
+    # more than one layer
 
     # reverse the list of made blocks to unpack in generating direction
     made_list_rev = list(reversed(made_list[:-1]))
@@ -183,3 +193,99 @@ def intermediate_flows_chain(made_list):
         feat_extraction_dists.append(dist)
 
     return feat_extraction_dists
+
+
+def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any, list[Any]]:
+    """
+    Retrieve the Keras SavedModel, the tfb TransformedDistribution, and the
+    list of MADE blocks from the desired model. Either a new model and its
+    parts or those contained in the given model directory are returned.
+
+    flow_path, str or None
+        Path pointing to a Keras SavedModel instance on disk. If None then
+        a new model is constructed. Otherwise, a pre-built model is loaded from
+        the file at `flow_path`.
+
+    Returns
+        keras.SavedModel : model with the specified parameters
+        TFDistribution.TransformedDistribution : transformation from the
+            normalizing distribution to the data (what is trained and sampled)
+        list[tf.Module] : list of the MAF layers with Permute layers in between
+    """
+
+    config_path = flow_path + "/config.json"
+    if not os.path.isfile(config_path):
+        print_msg(f"The model at '{flow_path}' is missing the model config " +
+                  f"file at {config_path}. A new model is going to be " +
+                  f"created at '{flow_path}'.", level=LOG_WARN)
+    with open(config_path, "r") as config_file:
+        config_dict = json.load(config_file)
+
+    if not isinstance(config_dict, dict):
+        print_msg(f"Config file {config_path} is incorrectly formatted." +
+                  "It must only consist of one dictionary of all relevant" +
+                  "parameters.", level=LOG_FATAL)
+    # Retrieve configuration parameters
+
+    # TODO try the t/e block once things are working smoothly
+    
+    """
+    build_model_keys = ["nmade", "ndim", "ndim_label", "hidden_layers", "hidden_unts"]
+
+    try:
+        for i, key in enumerate(build_model_keys):
+            eval(f"{key} = config_dict[{key}]")
+            if not isinstance(eval(f"{key}"), int):
+                raise TypeError()
+    except KeyError:
+        print_msg(f"Config file {config_path} lacks entry `{key}",
+                  level=LOG_FATAL)
+    except TypeError:
+        print_msg(f"Config file {config_path} does not have the correct type" +
+                  f"for entry `{key}`", level=LOG_FATAL)
+    """
+    # until then, allow the keyerror and exit
+    nmade = config_dict["nmade"]
+    ndim = config_dict["ndim"]
+    ndim_label = config_dict["ndim_label"]
+    hidden_layers = config_dict["hidden_layers"]
+    hidden_units = config_dict["hidden_units"]
+
+    # nmade = config_dict.get("nmade", None)
+    # ndim = config_dict.get("ndim", None)
+    # ndim_label = config_dict.get("ndim_label", None)
+    # hidden_layers = config_dict.get("hidden_layers", None)
+    # hidden_units = config_dict.get("hidden_units", None)
+    
+    # Build a model from scratch
+    if newmodel:
+        model, distribution, made_list = compile_MADE_model(
+            nmade, num_inputs=ndim, num_cond_inputs=ndim_label,
+            hidden_layers=hidden_layers, hidden_units=hidden_units)
+        
+        print("-----------------------------------------------------")
+
+        print(made_list)
+
+    # Load a model and extract its skeleton of MAFs
+    else:
+        # Define model's custom objects
+        custom_objects = {"lossfn_MADE": lossfn_MADE, "Made": MADE}
+        model = kload_model(flow_path, custom_objects=custom_objects)
+        made_blocks = []
+        for i in range(nmade):
+            made_blocks.append(model.get_layer(name=f"made_{i}"))
+
+        print(made_blocks)
+
+        print("-----------------------------------------------------")
+
+        distribution, made_list = build_MADE(made_blocks,
+            ndim, num_made=nmade, hidden_layers=hidden_layers,
+            hidden_units=hidden_units)
+        
+        print(made_list)
+
+        print("-----------------------------------------------------")
+
+    return model, distribution, made_list

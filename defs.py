@@ -10,9 +10,9 @@ geometry and data of the problem being interpolated.
 # Paths
 data_dir = "data/"                      #dir where training data are stored
 model_dir = "model/"                    #dir where model is saved (ckpts too)
-output_dir = "output/07-15_test3/"      #dir where a given analysis outputs
+output_dir = "output/07-19_beefy_test/"      #dir where a given analysis outputs
 root_dir = "root/10x10box_10k_jun2023"  #location where .ROOT files are stored
-flow_name = "07-15_TEST03"               #name of model
+flow_name = "07-16_BEEFY"               #name of model
 data_name = "07-15_TEST01"               #name used by data files of interest
 
 flow_path = model_dir + flow_name
@@ -22,15 +22,15 @@ loss_log = flow_path + "/loss_log.npy"
 # Run flags
 newdata = False     #make new data for this run (only needs to happen once)
 normalize = True   #pre-process samples and labels (usually `True`)
-newmodel = True     #make a new model
-savemodel = True   #save the used model in its intermediate and final states
+newmodel = False     #make a new model
+savemodel = False   #save the used model in its intermediate and final states
 newanalysis = True  #perform a new analysis
 
 
 ### --- Network Hyperparameters --- ###
 seed = 0xace1ace1ace1ace1   #seed for RNG
 decay_steps = 100           #number of steps optimizer takes to decay
-nepochs = 200                #iterations to train flow
+nepochs = 250                #iterations to train flow
 epoch_resume = 0            #iterations to resume training a trained model
 epoch_save = 50             #iterations to save flow state in checkpoints
 ndim = 2                    #dimensions of the sample data
@@ -40,8 +40,8 @@ end_lr = 1.0e-4             #ditto
 batch_size = 1024           #num samples in each epoch's minibatches
 ngen = 500                  #num samples for analysis/generation
 nmade = 10                  #MADE blocks in masked autoregressive flow
-hidden_layers = 1           #num layers in the MADE block (flow complexity)
-hidden_units = 128          #num parameters in each MADE block layer
+hidden_layers = 5           #num layers in the MADE block (flow complexity)
+hidden_units = 512          #num parameters in each MADE block layer
 
 ### --- Geometry/Problem Parameters --- ###
 # Use-case Parameters
