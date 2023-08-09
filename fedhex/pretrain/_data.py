@@ -6,11 +6,11 @@ Utility functions for generating, loading, and manipulating training data for
 a normalizing flow.
 """
 
+
 import numpy as np
 
-from fedhex import DEFAULT_SEED, WHITEN_EPSILON
+from ..constants import DEFAULT_SEED, WHITEN_EPSILON
 from ..utils import LOG_WARN, LOG_ERROR, LOG_FATAL, print_msg
-
 
 
 # TODO perhaps use kwargs instead?? and save those as whiten data?

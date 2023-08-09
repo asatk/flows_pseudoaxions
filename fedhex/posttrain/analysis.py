@@ -14,7 +14,7 @@ from scipy.stats import chisquare, kstest
 from typing import Any
 
 from ..train.tf import MADEflow
-from ..io._path import LOG_ERROR, LOG_FATAL
+from ..utils import LOG_ERROR, LOG_FATAL, print_msg
 from .plot import hist_one, plot_all, plot_losses, plot_one, \
     make_genplot_kwargs, make_trnplot_kwargs
 
@@ -122,17 +122,24 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     _, indexes_int = intersect_labels(labels_unique, gen_labels_unique, return_index=True)
     indexes_compare = list(zip(*indexes_int))
 
-    trn_indexes_compare = indexes_compare[0]
-    gen_indexes_compare = indexes_compare[1]
+    if len(indexes_int) > 0:
 
-    trn_compare = np.empty(shape=(0, ndim))
-    gen_compare = np.empty(shape=(0, ndim))
+        # TODO check for empty set or some errors in intersect labels
+        trn_indexes_compare = indexes_compare[0]
+        gen_indexes_compare = indexes_compare[1]
 
-    for index in trn_indexes_compare:
-        trn_compare = np.concatenate((trn_compare, trn_samples_grp[index]), axis=0)
+        trn_compare = np.empty(shape=(0, ndim))
+        gen_compare = np.empty(shape=(0, ndim))
 
-    for index in gen_indexes_compare:
-        gen_compare = np.concatenate((gen_compare, gen_samples_grp[index]), axis=0)
+        for index in trn_indexes_compare:
+            trn_compare = np.concatenate((trn_compare, trn_samples_grp[index]), axis=0)
+
+        for index in gen_indexes_compare:
+            gen_compare = np.concatenate((gen_compare, gen_samples_grp[index]), axis=0)
+    elif 4 in tools or 5 in tools:
+        print_msg("No labels are shared between the training and generated "+\
+                  "data, so tools 4 and 5 cannot be used.", level=LOG_ERROR)
+        return
     
 
     ### TOOL 1 - Plot Training Data and Network Output
@@ -243,6 +250,13 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
 # What it does: finds the labels shared by two sets (if any)
 def intersect_labels(labels_1: np.ndarray, labels_2: np.ndarray,
                      return_index: bool=False) -> np.ndarray:
+    """
+    Returns the intersection of the two sets of labels. If the intersection is
+    empty, an empty list is returned. Otherwise, a list containing the shared
+    labels is returned. If `return_index` is True, a list of indices noting the
+    location of the shared label for each set is returned. If the intersection
+    is empty, an empty list is returned.
+    """
     labels_int = []
     indexes_int = []    # the indexes in the first array are returned only
 

@@ -88,6 +88,7 @@ def _loadoneroot(data_path: str, event_threshold: float=0.01) -> np.ndarray:
     omegaidxarr = arrs[omegaidxstr]
     ptidxarr = arrs[ptidxstr]
 
+    # TODO check that this should be bitwise or
     # -1 & -1 == -1 only way to get -1 b/c -1 is all 1 bits
     idxcutarr = ((omegaidxarr & ptidxarr) != -1)
 
@@ -105,6 +106,7 @@ def _loadoneroot(data_path: str, event_threshold: float=0.01) -> np.ndarray:
     labelphi_temp = np.empty_like(labelphi, dtype=np.float32)
     labelomega_temp = np.empty_like(labelomega, dtype=np.float32)
 
+    # TODO check no nan slips thru cracks
     # perform cut and extract correct element with index
     for i in range(len(omega)):
         if pt[i][ptidx[i]] > 220:
@@ -121,6 +123,7 @@ def _loadoneroot(data_path: str, event_threshold: float=0.01) -> np.ndarray:
     newlabelphi = labelphi_temp[cutarr].copy()
     newlabelomega = labelomega_temp[cutarr].copy()
 
+    # TODO separate by label
     # exclude data sets that have too few statistics after cuts
     if (len(newphi) < event_threshold * nevents):
         samples = np.empty((0, 2), dtype=np.float32)

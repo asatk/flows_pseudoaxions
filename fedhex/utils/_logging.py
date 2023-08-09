@@ -5,6 +5,7 @@ Modified: 2023.07.20
 Logging
 """
 
+
 from datetime import datetime, timedelta
 from sys import stdout
 from textwrap import fill as twfill
@@ -27,8 +28,8 @@ MSG_LONG = 2
 
 
 level_codes: list[str] = [
-    "I",
     "D",
+    "I",
     "W",
     "E",
     "F"

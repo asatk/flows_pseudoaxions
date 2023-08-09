@@ -16,17 +16,16 @@ from .posttrain import *
 from .pretrain import *
 from .train import *
 from .utils import *
+from .constants import *
 
-from ._constants import DEFAULT_SEED, WHITEN_EPSILON
 
-def set_seed(seed: int=DEFAULT_SEED):
+def set_seed(seed: int=constants.DEFAULT_SEED):
     # Set the global random seed for tensorflow
     tf.random.set_seed(seed)
 
 set_seed()
 
 __all__ = [
-    "DEFAULT_SEED",
     "set_seed"
 ]
 

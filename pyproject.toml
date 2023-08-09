@@ -1,0 +1,18 @@
+[project]
+name = "FEDHEX"
+version = "0.1.0"
+authors = [
+  { name="Anthony Atkinson", email="asa15@rice.edu" },
+]
+description = "ML techniques to learn and reproduce high-energy ptcl phys data"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/asatk/flows_pseudoaxions"
+"Bug Tracker" = "https://github.com/asatl/flows_pseudoaxions/issues"
