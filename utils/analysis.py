@@ -120,17 +120,25 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     _, indexes_int = intersect_labels(labels_unique, gen_labels_unique, return_index=True)
     indexes_compare = list(zip(*indexes_int))
 
-    trn_indexes_compare = indexes_compare[0]
-    gen_indexes_compare = indexes_compare[1]
+    if len(indexes_int) > 0:
 
-    trn_compare = np.empty(shape=(0, ndim))
-    gen_compare = np.empty(shape=(0, ndim))
+        # TODO check for empty set or some errors in intersect labels
+        trn_indexes_compare = indexes_compare[0]
+        gen_indexes_compare = indexes_compare[1]
 
-    for index in trn_indexes_compare:
-        trn_compare = np.concatenate((trn_compare, trn_samples_grp[index]), axis=0)
+        trn_compare = np.empty(shape=(0, ndim))
+        gen_compare = np.empty(shape=(0, ndim))
 
-    for index in gen_indexes_compare:
-        gen_compare = np.concatenate((gen_compare, gen_samples_grp[index]), axis=0)
+        for index in trn_indexes_compare:
+            trn_compare = np.concatenate((trn_compare, trn_samples_grp[index]), axis=0)
+
+        for index in gen_indexes_compare:
+            gen_compare = np.concatenate((gen_compare, gen_samples_grp[index]), axis=0)
+    # cannot use tools 4 or 5 if no shared labels - nothing to compare!
+    elif 4 in tools or 5 in tools:
+        print_msg("No labels are shared between the training and generated "+\
+                  "data, so tools 4 and 5 cannot be used.", level=LOG_ERROR)
+        return
     
 
     ### TOOL 1 - Plot Training Data and Network Output
@@ -369,9 +377,14 @@ def plot_losses(losses, out_path: str=None, show=False,
 
     # Plot losses
     fig, ax = plt.subplots()
-    ax.semilogy(losses_nonneg[:, 0], losses_nonneg[:, 1], c="blue", label="positive loss")
-    ax.semilogy(losses_neg[:, 0], losses_neg[:, 1], c="red", label="negative loss")
-    ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:,1 ]), colors=["gray"], linestyles="dashed")
+
+    if len(losses_nonneg) > 0:
+        ax.semilogy(losses_nonneg[:, 0], losses_nonneg[:, 1], c="blue", label="positive loss")
+    if len(losses_neg) > 0:
+        ax.semilogy(losses_neg[:, 0], losses_neg[:, 1], c="red", label="negative loss")
+    if len(turnover_epoch) > 0:
+        ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:,1 ]), colors=["gray"], linestyles="dashed")
+
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)

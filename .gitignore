@@ -1,4 +1,4 @@
-/__pycache__/
+*/__pycache__/
 /.ipynb_checkpoints/
 /bad/
 /data/
@@ -6,9 +6,9 @@
 /model/
 /output/
 /root/
+/.misc/
 *.code-workspace
 *.h5
 *.txt
-*GAN.py
-flow_tutorial.ipynb
 *.pyc
+flow_tutorial.ipynb
