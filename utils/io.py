@@ -100,7 +100,7 @@ def init(data_dir: str="data", model_dir: str="model",
     elif newanalysis:
         c = " " 
         while c not in ["y", "N"]:
-            c = input("would you like to replace the analysis output saved at" +
+            c = input("would you like to replace the analysis output saved at " +
                       f"{output_dir}? [y/N]")
 
         if c == "N":
@@ -162,7 +162,7 @@ def init(data_dir: str="data", model_dir: str="model",
         os.mkdir(flow_path)
     
     # Loading a model from a dir that does not exist - fatal error
-    else:
+    elif not os.path.isdir(flow_path) and not newmodel:
         print_msg(f"Saved model directory {flow_path} does not exist",
                 level=LOG_FATAL)
 

@@ -7,9 +7,7 @@ includes data generation, model training, and analysis.
 """
 
 # hopefully get rid of those stupid tensorflow warnings
-from absl import logging as absl_logging
 from os import environ
-absl_logging.set_verbosity(absl_logging.ERROR)
 environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import defs

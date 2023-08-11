@@ -373,7 +373,6 @@ def plot_losses(losses, out_path: str=None, show=False,
     # Separate loss data into positive and negative losses
     losses_nonneg = losses[losses[:, 1] >= 0]
     losses_neg = np.abs(losses[losses[:, 1] < 0])
-    turnover_epoch = losses[losses[:, 1] < 0][0, 0]
 
     # Plot losses
     fig, ax = plt.subplots()
@@ -382,7 +381,8 @@ def plot_losses(losses, out_path: str=None, show=False,
         ax.semilogy(losses_nonneg[:, 0], losses_nonneg[:, 1], c="blue", label="positive loss")
     if len(losses_neg) > 0:
         ax.semilogy(losses_neg[:, 0], losses_neg[:, 1], c="red", label="negative loss")
-    if len(turnover_epoch) > 0:
+    if len(losses_nonneg) > 0 and len(losses_neg) > 0:
+        turnover_epoch = losses[losses[:, 1] < 0][0, 0]
         ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:,1 ]), colors=["gray"], linestyles="dashed")
 
     ax.set_title(title)

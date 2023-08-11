@@ -61,7 +61,7 @@ def makedata(mode: int, load_data_path: str=None, save_data_path: str=None,
     val = kwargs.get("val", 0.5)
     sigma_gaus = kwargs.get("sigma_gaus", 0.05)
     nsamp = kwargs.get("nsamp", 1e3)
-    event_threshold = kwargs.get("event_threshold", 0.01)
+    event_thresh = kwargs.get("event_threshold", 0.01)
 
     if mode == MODE_LINE:
 
@@ -95,7 +95,10 @@ def makedata(mode: int, load_data_path: str=None, save_data_path: str=None,
             sample_gaussian(nsamp, labels_unique, means, covs)
 
     elif mode == MODE_ROOT:
-        samples, labels = _loadallroot(load_data_path, event_threshold)
+        file_list = _find_root(data_dir=load_data_path)
+        samples, labels = _load_root(root_paths=file_list, event_selection_fn=_evt_sel_1,
+            expressions=expressions, cutstr=cutstr, event_thresh=event_thresh)
+        # samples, labels = _loadallroot(load_data_path, event_thresh)
     
     else:
         print_msg("This type of training data generation is not implemented",
@@ -119,7 +122,7 @@ def makedata(mode: int, load_data_path: str=None, save_data_path: str=None,
     return data, cond
 
 
-def _find_root(data_dir, max_depth: int=3):
+def _find_root(data_dir: str, max_depth: int=3):
     """
     Locate the paths to all of the .ROOT files in a given directory. This
     function is recursive and will only descend the number of subtrees as given
@@ -204,8 +207,7 @@ def _load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
     arr = up.concatenate(root_paths, expressions=expressions, cut=cutstr,
         num_workers=num_workers, begin_chunk_size="2 MB", library="np")
 
-    samples_temp, labels_temp = event_selection_fn(arr,
-        expressions=expressions, cutstr=cutstr)
+    samples_temp, labels_temp = event_selection_fn(arr)
 
     # separate samples/labels into groups per label
     labels_unique, inverse_unique = np.unique(labels_temp, return_inverse=True,
@@ -223,7 +225,7 @@ def _load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
         # only include labels with sufficiently many statistics after cuts
         if len(sample_i) >= event_thresh:
             samples = np.r_[samples, sample_i]
-            labels = np.r_[labels, [label_i]]
+            labels = np.r_[labels, np.repeat([label_i], len(sample_i), axis=0)]
 
     return samples, labels
 
