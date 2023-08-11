@@ -1,7 +1,7 @@
 from numpy import ndarray, save
 
 from ._data import load_data_dict
-from ._root import _loadallroot
+from ._root import _evt_sel_1, _find_root, _load_root, cutstr, expressions
 from ..pretrain import dewhiten, whiten
 from ..utils import LOG_ERROR, print_msg
 
@@ -97,9 +97,10 @@ class RootLoader(Loader):
 
         if event_threshold is not None:
             self._thresh = event_threshold
-            
 
-        samples, labels = _loadallroot(self._path, event_threshold=self._thresh)
+        file_list = _find_root(path)
+        samples, labels = _load_root(file_list, event_selection_fn=_evt_sel_1,
+            expressions=expressions, cutstr=cutstr, event_thresh=self._thresh)
         data, whiten_data = whiten(samples)
         cond, whiten_cond = whiten(labels)
 
