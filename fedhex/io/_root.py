@@ -117,8 +117,7 @@ def _load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
     arr = up.concatenate(root_paths, expressions=expressions, cut=cutstr,
         num_workers=num_workers, begin_chunk_size="2 MB", library="np")
 
-    samples_temp, labels_temp = event_selection_fn(arr,
-        expressions=expressions, cutstr=cutstr)
+    samples_temp, labels_temp = event_selection_fn(arr)
 
     # separate samples/labels into groups per label
     labels_unique, inverse_unique = np.unique(labels_temp, return_inverse=True,
@@ -136,6 +135,6 @@ def _load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
         # only include labels with sufficiently many statistics after cuts
         if len(sample_i) >= event_thresh:
             samples = np.r_[samples, sample_i]
-            labels = np.r_[labels, [label_i]]
+            labels = np.r_[labels, np.repeat([label_i], len(sample_i), axis=0)]
 
     return samples, labels

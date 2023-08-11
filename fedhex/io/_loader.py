@@ -4,6 +4,7 @@ from ._data import load_data_dict
 from ._root import _evt_sel_1, _find_root, _load_root, cutstr, expressions
 from ..pretrain import dewhiten, whiten
 from ..utils import LOG_ERROR, print_msg
+from ..constants import WHITEN_EPSILON
 
 
 class Loader():
@@ -40,7 +41,8 @@ class Loader():
     def get_whiten_cond(self):
         return self._whiten_cond
 
-    def load(self, path: str|None=None, data_dict: dict|None=None) -> dict:
+    def load(self, path: str|None=None, data_dict: dict|None=None,
+             epsilon: float=WHITEN_EPSILON) -> dict:
         """
         Loads the data from a given path/data_dict. Updates the Loader's path
         or data_dict variables if provided.
@@ -82,27 +84,33 @@ class Loader():
     
 class RootLoader(Loader):
 
-    def __init__(self, path: str, data_dict: dict=None, event_threshold: float=0.01):
+    def __init__(self, path: str, data_dict: dict=None, event_thresh: int=100):
         """
         path : str
             relevant .ROOT path for data loaded or saved.
         """
         super().__init__(path=path, data_dict=data_dict)
-        self._thresh = event_threshold
+        self._thresh = event_thresh
         
-    def load(self, path: str|None=None, event_threshold: float|None=None) -> dict:
+    def load(self, path: str|None=None, event_thresh: int|None=None,
+             epsilon: float=WHITEN_EPSILON) -> dict:
 
         if path is not None:
             self._path = path
+        else:
+            path = self._path
 
-        if event_threshold is not None:
-            self._thresh = event_threshold
+        if event_thresh is not None:
+            self._thresh = event_thresh
+        else:
+            event_thresh = self._thresh
 
+        print(path)
         file_list = _find_root(path)
         samples, labels = _load_root(file_list, event_selection_fn=_evt_sel_1,
-            expressions=expressions, cutstr=cutstr, event_thresh=self._thresh)
-        data, whiten_data = whiten(samples)
-        cond, whiten_cond = whiten(labels)
+            expressions=expressions, cutstr=cutstr, event_thresh=event_thresh)
+        data, whiten_data = whiten(samples, epsilon=epsilon)
+        cond, whiten_cond = whiten(labels, epsilon=epsilon)
 
         data_dict = {
             "data": data,
