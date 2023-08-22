@@ -51,40 +51,56 @@ samples, labels = generator.generate()
 
 
 ## Running An Experiment
-
+Use the class ``Manager`` to handle all of the model setup and running once all necessary parameters are provided.
 
 Build a model with the given model parameters:
 ``` py
-from fedhex.train.tf import compile_MADE_model
-model, dist, made_list = compile_MADE_model(num_made=num_made,
-    num_inputs=num_inputs, num_cond_inputs=num_cond_inputs,
-    hidden_layers=hidden_layers, hidden_units=hidden_units, lr_tuple=lr_tuple)
+from fedhex.train.tf import MADEManager
+# Create MADEManager instance with all parameters needed to build model
+mm = MADEManager(nmade=num_made, ninputs=num_inputs, ncinputs=num_cond_inputs,
+                 hidden_layers=hidden_layers, hidden_units=hidden_units,
+                 lr_tuple=lr_tuple)
+
+# Build model
+mm.compile_model()
+```
+
+Make the callbacks for training:
+``` py
+# Make callbacks
+callbacks = []
+t = print_msg("Beginning Training")
+callbacks.append(SelectiveProgbarLogger(verbose=1, epoch_interval=10, epoch_end=nepochs, tstart=t))
+callbacks.append(Checkpointer(flow_path + "{epoch:03}.ckpt", save_freq=50 * nepochs))
 ```
 
 Run a model with the given run parameters:
+
 ``` py
-from fedhex.train.tf import train
-train(model, data, cond, nepochs=nepochs, batch_size=batch_size,
-    starting_epoch=starting_epoch, flow_path=flow_path,
-    callbacks=callbacks)
+# Run training procedure
+mm.train_model(data=data, cond=cond, nepochs=nepochs, batch_size=batch_size,
+               starting_epoch=starting_epoch, flow_path=flow_path,
+               callbacks=callbacks)
+```
+
+## Generating New Data
+
+Evaluate the model for specified conditional data:
+``` py
+# Setup sample generation for a known training label
+ngen = 500
+gen_label = np.array([2464, 5.125])
+gen_labels = np.repeat([gen_label], ngen, axis=0)
+gen_cond = loader.preproc_new(samples=gen_labels, is_cond=True)
+
+# Generate data for the provided conditional data
+gen_data = mm.eval_model(gen_cond)
+gen_samples = loader.recover_new(gen_data)
 ```
 
 Look how a model network performs:
 ![The training loss of the flow as it trains. Plotted is the loss on the y-axis in log-scale against the epoch at which it was recorded on the x-axis. When the losss becomes negative, its absolute value is plotted.](readme_imgs/loss.png "The training losses of a flow with 10 bijections, 1 layer and 128 parameters per bijection.")
 
-
-## Generating New Data
-
-Generate new data from the trained flow by using the previously-built ``distribution`` and ``made_list`` using these commands (will be streamlined into one command/object).
-
-```py
-current_kwargs = {}
-for i in range(len(made_list) // 2):
-    current_kwargs[f"maf_{i}"] = {"conditional_input" : gen_cond}
-
-gen_data = dist.sample(ngen, bijector_kwargs=current_kwargs)
-gen_samples = loader.recover_new(gen_data)
-```
 
 ## Performing Analysis
 
