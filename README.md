@@ -2,6 +2,7 @@
 - [Current Bugs/Issues/"Features"](#current-bugsissuesfeatures)
 - [Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX)](#goals-of-flows-enriched-data-generation-for-high-energy-experiment-fedhex)
 - [Getting Started](#getting-started)
+  - [Loading Data](#loading-data)
   - [Generating Data](#generating-data)
   - [Running An Experiment](#running-an-experiment)
   - [Performing Analysis](#performing-analysis)
@@ -26,19 +27,45 @@ Create a new environment using (ana/mini)conda package manager:
 
 ```conda create -n flows3.10 --file requirements.txt```
 
+Check out an example notebook: ``nb.ipynb``
+
+## Loading Data
+
+Use the class ``Loader`` to load data from Numpy or .ROOT files.
+```py
+from fedhex.io import RootLoader
+loader = RootLoader(root_path)
+samples, labels = loader.load()
+```
+
 ## Generating Data
+
+Use the class ``Generator`` to generate data with a specific generation Strategy (for gaussian generators, these "Strategies" modify the covariance matrix for each generated gaussian)
+``` py
+from fedhex.pretrain.generation import DiagCov, GridGaussGenerator, RepeatStrategy
+strat = RepeatStrategy(DiagCov(ndim=2, sigma=0.025))
+generator = GridGaussGenerator(cov_strat=strat, ndistx=5, ndisty=5)
+samples, labels = generator.generate()
+```
 
 
 ## Running An Experiment
 
 
-To run the network:
-
-
---- OR ---
-
+Build a model with the given model parameters:
 ``` py
+from fedhex.train.tf import compile_MADE_model
+model, dist, made_list = compile_MADE_model(num_made=num_made,
+    num_inputs=num_inputs, num_cond_inputs=num_cond_inputs,
+    hidden_layers=hidden_layers, hidden_units=hidden_units, lr_tuple=lr_tuple)
+```
 
+Run a model with the given run parameters:
+``` py
+from fedhex.train.tf import train
+train(model, data, cond, nepochs=nepochs, batch_size=batch_size,
+    starting_epoch=starting_epoch, flow_path=flow_path,
+    callbacks=callbacks)
 ```
 
 to load a saved model:
