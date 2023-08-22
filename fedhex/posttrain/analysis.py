@@ -5,10 +5,8 @@ Modified: 2023.07.15
 
 import math
 from matplotlib import pyplot as plt
-from matplotlib.ticker import MaxNLocator
 import multiprocessing as mp
 import numpy as np
-from numpy.typing import ArrayLike
 import os
 from scipy.stats import chisquare, kstest
 from typing import Any
@@ -17,6 +15,8 @@ from ..train.tf import MADEflow
 from ..utils import LOG_ERROR, LOG_FATAL, print_msg
 from .plot import hist_one, plot_all, plot_losses, plot_one, \
     make_genplot_kwargs, make_trnplot_kwargs
+from ..pretrain import dewhiten, whiten
+from ..io import Loader
 
 
 plt.rcParams.update({
@@ -62,10 +62,11 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
         return
 
     # Load dewhitened training data
-    trn_data, trn_cond, whiten_data, whiten_cond = load_data_dict(training_data_path)
-
-    trn_samples = dutils.dewhiten(trn_data, whiten_data)
-    trn_labels = dutils.dewhiten(trn_cond, whiten_cond)
+    loader = Loader(training_data_path)
+    loader.load()
+    trn_data = loader.get_data()
+    trn_cond = loader.get_cond()
+    trn_samples, trn_labels = loader.recover_preproc()
 
     # Group samples & labels by unique label
     labels_unique, inverse_unique = np.unique(trn_labels, return_inverse=True, axis=0)
@@ -79,17 +80,20 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     if generated_data_path is None:
         # This is a hardcoded label just to serve as an example.
         gen_labels = np.repeat([[2464, 5.125]], ngen, axis=0) # arb. label
-        gen_cond, _ = dutils.whiten(gen_labels, whiten_data=whiten_cond)
+        gen_cond = loader.preproc_new(gen_labels, is_cond=True)
         gen_data = None
     else:
         if not os.path.isfile(generated_data_path):
             print_msg("Cannot locate the generated data " +
                   "located at `%s`."%(generated_data_path), level=LOG_FATAL)
             return
-        gen_data, gen_cond, _, _ = load_data_dict(generated_data_path)
+        gen_loader = Loader(generated_data_path)
+        gen_loader.load()
+        gen_data = gen_loader.get_data()
+        gen_cond = gen_loader.get_cond()
         # Load conditional data that is already whitened from file. These data
         # need not be the  conditional data with which the network is trained.
-        gen_labels = dutils.dewhiten(gen_cond, whiten_cond)
+        gen_samples, gen_labels = gen_loader.recover_preproc()
 
     # Make a list of the unique labels and a list of their occurrence in gen_labels
     gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
@@ -109,12 +113,16 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     # Load net-friendly version of the data
     
     # Transform generated data from net-friendly to user-friendly
-    gen_samples = dutils.dewhiten(gen_data, whiten_data)
+    gen_samples = loader.recover_new(gen_data, is_cond=False)
     # ++++ Prepare Generated Data ++++ #
 
     # Group data
-    trn_samples_grp = [trn_samples[inverse_unique == i] for i in range(len(labels_unique))]
-    gen_samples_grp = [gen_samples[gen_inverse_unique == i] for i in range(len(gen_labels_unique))]
+    trn_samples_grp = [
+        trn_samples[inverse_unique == i] for i in range(len(labels_unique))
+    ]
+    gen_samples_grp = [
+        gen_samples[gen_inverse_unique == i] for i in range(len(gen_labels_unique))
+    ]
 
 
     # define the samples compared as only those which share a label in
@@ -156,7 +164,6 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
 
 
         # ++++ Plot generated data ++++ #
-        
         genplot_kwargs = make_genplot_kwargs(gen_labels_unique, gen_samples_grp, len(gen_samples), out_gen_i, lims)
         genhist_kwargs = make_genplot_kwargs(gen_labels_unique, gen_samples_grp, len(gen_samples), out_gen_hist_i, lims)
 
@@ -178,7 +185,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
         flow_distributions = MADEflow.intermediate_flows_chain(made_list)
         for i, dist in enumerate(flow_distributions):
             gen_data_flow_i = dist.sample((gen_cond.shape[0], ), bijector_kwargs=current_kwargs)
-            gen_samples_flow_i = dutils.dewhiten(gen_data_flow_i, whiten_data)
+            gen_samples_flow_i = loader.recover_new(gen_data_flow_i, is_cond=False)
             plot_args = {"title": "Generated Output (N = %i) up to Flow %i"%(gen_cond.shape[0], i)}
             plot_all(gen_samples_flow_i, gen_labels_unique, out_flow_i%i, kwargs=plot_args)
 

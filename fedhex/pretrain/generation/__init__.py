@@ -12,7 +12,7 @@ from ... import DEFAULT_SEED
 from ...io import save_config
 from ...utils import LOG_FATAL, print_msg
 
-from ._gaussian import CovStrategy, CovModStrategy, DiagCov, FullCov, SampleCov, RepeatStrategy, Modify1dStrategy
+from ._gaussian import CovStrategy, CovModStrategy, DiagCov, FullCov, SampleCov, RepeatStrategy
 
 class Generator():
 
@@ -29,14 +29,9 @@ class Generator():
             self._whiten_data = dict()
             self._whiten_cond = dict()
         else:
-            try:
-                self.nsamp = config["nsamp"]
-                self.ndist = config["ndist"]
-                self.seed = config["seed"]
-            except KeyError:
-                print_msg("Key '' not found in the config dictionary." + \
-                          " It will not be used to create this generator.",
-                          level=LOG_FATAL)
+            self.nsamp = config.get("nsamp", 1e3)
+            self.ndist = config.get("ndist", 10)
+            self.seed = config.get("seed", DEFAULT_SEED)
 
     def preproc(self, save_path: str=None, ret_whiten: bool=False):
         data, whiten_data = whiten(self._samples)
@@ -74,7 +69,6 @@ __all__ = [
     "FullCov",
     "SampleCov",
     "RepeatStrategy",
-    "Modify1dStrategy",
     "LineGaussGenerator",
     "GridGaussGenerator"
 ]

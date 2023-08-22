@@ -41,23 +41,29 @@ class Loader():
     def get_whiten_cond(self):
         return self._whiten_cond
 
-    def load(self, path: str|None=None, data_dict: dict|None=None,
-             epsilon: float=WHITEN_EPSILON) -> dict:
+    def load(self, path: str|None=None, data_dict: dict|None=None) -> dict:
         """
         Loads the data from a given path/data_dict. Updates the Loader's path
         or data_dict variables if provided.
         """
 
+        # check if loading samples and labels vs already pre-proc data w/
+        # whiten data
+
         if path is not None:
             self._path = path
+        else:
+            path = self._path
         
         if data_dict is not None:
             self._data_dict = data_dict
+        else:
+            data_dict = self._data_dict
 
         if self._data_dict is None and self._path is not None:
             self._data_dict = data_dict = load_data_dict(path, ret_dict=True)
 
-        if self._data_dict is None and self.__path__ is None:
+        if self._data_dict is None and self._path is None:
             print_msg("Loader cannot have `None` for both `path` and " + \
                       "`data_dict`. Please provide values for either", level=LOG_ERROR)
         
@@ -80,20 +86,23 @@ class Loader():
 
     def preproc_new(self, samples, is_cond: bool=False) -> ndarray:
         whiten_data = self._whiten_cond if is_cond else self._whiten_data
-        return whiten(samples, whiten_data)
-    
-class RootLoader(Loader):
+        return whiten(samples, whiten_data, ret_dict=False)
 
-    def __init__(self, path: str, data_dict: dict=None, event_thresh: int=100):
+
+class NumpyLoader(Loader):
+
+    def __init__(self, path: str, path_labels: str, data_dict: dict=None,
+                 event_thresh: int=100):
         """
         path : str
             relevant .ROOT path for data loaded or saved.
         """
         super().__init__(path=path, data_dict=data_dict)
+        self._path_labels = path_labels
         self._thresh = event_thresh
         
     def load(self, path: str|None=None, event_thresh: int|None=None,
-             epsilon: float=WHITEN_EPSILON) -> dict:
+             epsilon: float=WHITEN_EPSILON, do_whiten: bool=False) -> dict:
 
         if path is not None:
             self._path = path
@@ -105,8 +114,55 @@ class RootLoader(Loader):
         else:
             event_thresh = self._thresh
 
-        print(path)
         file_list = _find_root(path)
+        samples, labels = _load_root(file_list, event_selection_fn=_evt_sel_1,
+            expressions=expressions, cutstr=cutstr, event_thresh=event_thresh)
+        data, whiten_data = whiten(samples, epsilon=epsilon)
+        cond, whiten_cond = whiten(labels, epsilon=epsilon)
+
+        data_dict = {
+            "data": data,
+            "cond": cond,
+            "whiten_data": whiten_data,
+            "whiten_cond": whiten_cond
+        }
+
+        return super().load(path=self._path, data_dict=data_dict)
+
+    def save_to_npy(self, path_npy: str):
+        save(path_npy, self._data_dict, allow_pickle=True)
+
+    def save_to_root(self):
+        """
+        Darshan's ROOT saving tool (uses self.path since it points to .ROOT)
+        """
+        pass
+
+
+class RootLoader(Loader):
+
+    def __init__(self, path: str, data_dict: dict=None, event_thresh: int=100):
+        """
+        path : str
+            relevant .ROOT path for data loaded or saved.
+        """
+        super().__init__(path=path, data_dict=data_dict)
+        self._thresh = event_thresh
+        
+    def load(self, path: str|None=None, event_thresh: int|None=None,
+             epsilon: float=WHITEN_EPSILON, max_depth: int=3) -> dict:
+
+        if path is not None:
+            self._path = path
+        else:
+            path = self._path
+
+        if event_thresh is not None:
+            self._thresh = event_thresh
+        else:
+            event_thresh = self._thresh
+
+        file_list = _find_root(path, max_depth=max_depth)
         samples, labels = _load_root(file_list, event_selection_fn=_evt_sel_1,
             expressions=expressions, cutstr=cutstr, event_thresh=event_thresh)
         data, whiten_data = whiten(samples, epsilon=epsilon)

@@ -15,7 +15,7 @@ from ..utils import LOG_WARN, LOG_ERROR, LOG_FATAL, print_msg
 
 # TODO perhaps use kwargs instead?? and save those as whiten data?
 def whiten(data: np.ndarray, whiten_data: dict|None=None,
-        epsilon: float=WHITEN_EPSILON) -> tuple[np.ndarray, dict[str, float]]:
+        epsilon: float=WHITEN_EPSILON, ret_dict: bool=True) -> tuple[np.ndarray, dict[str, float]]:
     # TODO update docstring
     """
     Standardize the data to make it more 'network-friendly'. Whitened data
@@ -68,7 +68,9 @@ def whiten(data: np.ndarray, whiten_data: dict|None=None,
     # standardize the data to have 0 mean and unit variance
     data_norm = (data_logit - mean_norm) / std_norm
  
-    return data_norm, whiten_data
+    if ret_dict:
+        return data_norm, whiten_data
+    return data_norm
 
 
 def dewhiten(data_norm: np.ndarray, whiten_data: dict) -> np.ndarray:
@@ -100,6 +102,3 @@ def dewhiten(data_norm: np.ndarray, whiten_data: dict) -> np.ndarray:
     data = data_unit * (max_norm - min_norm) + min_norm
 
     return data
-
-
-
