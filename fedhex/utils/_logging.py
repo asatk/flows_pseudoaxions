@@ -16,8 +16,8 @@ from traceback import print_stack
 
 loglevel: int= 1
 
-LOG_DEBUG = 0
-LOG_INFO = 1
+LOG_INFO = 0
+LOG_DEBUG = 1
 LOG_WARN = 2
 LOG_ERROR = 3
 LOG_FATAL = 4
@@ -28,8 +28,8 @@ MSG_LONG = 2
 
 
 level_codes: list[str] = [
-    "D",
     "I",
+    "D",
     "W",
     "E",
     "F"

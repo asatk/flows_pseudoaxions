@@ -21,7 +21,69 @@ from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as 
 from typing import Any
 import numpy as np
 
-from ...io._path import print_msg, LOG_WARN, LOG_FATAL
+from ...io._path import LOG_WARN, LOG_FATAL, print_msg, save_config
+from ..tf._train import train
+
+
+class MADEManager():
+    def __init__(self, nmade: int, ninputs: int, ncinputs: int,
+                 hidden_layers: int, hidden_units: int,
+                 lr_tuple: tuple[int]) -> None:
+        
+        self._nmade = nmade
+        self._ninputs = ninputs
+        self._ncinputs = ncinputs
+        self._hidden_layers = hidden_layers
+        self._hidden_units = hidden_units
+        self._lr_tuple = lr_tuple
+
+    def compile_model(self) -> None:
+        model, dist, made_list = compile_MADE_model(num_made=self._nmade,
+            num_inputs=self._ninputs, num_cond_inputs=self._ncinputs,
+            hidden_layers=self._hidden_layers, hidden_units=self._hidden_units,
+            lr_tuple=self._lr_tuple)
+        
+        self._model = model
+        self._dist = dist
+        self._made_list = made_list
+
+    def train_model(self, data, cond, nepochs, batch_size, starting_epoch=0,
+                    flow_path: str|None=None, callbacks: list=None) -> None:
+        
+        if callbacks == None:
+            callbacks = []
+
+        self._nepochs = nepochs
+        self._batch_size = batch_size
+        self._starting_epoch = starting_epoch
+        self._flow_path = flow_path
+        
+        train(self._model, data, cond, nepochs=nepochs, batch_size=batch_size,
+              starting_epoch=starting_epoch, flow_path=flow_path,
+              callbacks=callbacks)
+        
+    def eval_model(self, cond) -> np.ndarray:
+        
+        # Generate samples
+        current_kwargs = {}
+        for i in range(len(self._made_list) // 2):
+            current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
+
+        gen_data = self._dist.sample(len(cond), bijector_kwargs=current_kwargs)
+        return gen_data
+    
+    def save_model(self, flow_path: str):
+        self._model.save(flow_path)
+
+    def save(self, config_path: str):
+        d = {"nmade": self._nmade, "ninputs": self._ninputs,
+             "ncinputs": self._ncinputs, "hidden_layers": self._hidden_layers,
+             "hidden_units": self._hidden_units, "lr_tuple": self._lr_tuple,
+             "nepochs": self._nepochs, "batch_size": self._batch_size,
+             "starting_epoch": self._starting_epoch,
+             "flow_path": self._flow_path}
+        save_config(config_path, d, save_all=False)
+
 
 class MADE(tfb.AutoregressiveNetwork):
     """
@@ -81,8 +143,8 @@ class MADE(tfb.AutoregressiveNetwork):
         return config
 
 def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
-        hidden_layers: int=1, hidden_units: int=128, activation: str="relu",
-        cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list]:
+        hidden_layers: int|list=1, hidden_units: int=128,
+        activation: str="relu", cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
@@ -94,9 +156,15 @@ def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
 
     if made_blocks is None or len(made_blocks) == 0:
         made_blocks = []
-        hidden_units_list = hidden_layers * [hidden_units]
+
+        if isinstance(hidden_layers, list):
+            hidden_units_list = hidden_layers
+        else:
+            hidden_units_list = hidden_layers * [hidden_units]
+        
         for i in range(num_made):
             #TODO check that params should be 2 ^ refer to above from tutorial
+            # Yes, I believe so: scale & shift params are all we need
             made = MADE(params=2, hidden_units=hidden_units_list,
                 event_shape=(num_inputs,), conditional=True,
                 conditional_event_shape=cond_event_shape,
@@ -119,8 +187,9 @@ def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
     return distribution, made_list
 
 def compile_MADE_model(num_made: int, num_inputs: int,
-        num_cond_inputs: int=None, hidden_layers: int=1, hidden_units: int=128,
-        lr_tuple: tuple=(1e-3, 1e-4, 100)) -> tuple[tfk.Model, Any, list[Any]]:
+        num_cond_inputs: int=None, hidden_layers: int|list=1,
+        hidden_units: int=128, lr_tuple: tuple=(1e-3, 1e-4, 100),
+        activation: str="relu") -> tuple[tfk.Model, TransformedDistribution, list[Any]]:
     # TODO add docstring though this is mostly an internal method - do later
     """
     Build new model from scratch
@@ -136,7 +205,8 @@ def compile_MADE_model(num_made: int, num_inputs: int,
     made_list = []
     distribution, made_list = build_MADE(made_list, num_inputs,
             hidden_layers=hidden_layers, hidden_units=hidden_units,
-            cond_event_shape=(num_cond_inputs, ), num_made=num_made)
+            cond_event_shape=(num_cond_inputs, ), num_made=num_made,
+            activation=activation)
     
     # Data input layers
     x_ = tfk.layers.Input(shape=(num_inputs,), name="aux_input")
