@@ -2,9 +2,10 @@
 - [Current Bugs/Issues/"Features"](#current-bugsissuesfeatures)
 - [Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX)](#goals-of-flows-enriched-data-generation-for-high-energy-experiment-fedhex)
 - [Getting Started](#getting-started)
-  - [Loading Data](#loading-data)
-  - [Generating Data](#generating-data)
+  - [Loading Training Data](#loading-training-data)
+  - [Generating Training Data](#generating-training-data)
   - [Running An Experiment](#running-an-experiment)
+  - [Generating New Data](#generating-new-data)
   - [Performing Analysis](#performing-analysis)
 
 # Current Bugs/Issues/"Features"
@@ -29,7 +30,7 @@ Create a new environment using (ana/mini)conda package manager:
 
 Check out an example notebook: ``nb.ipynb``
 
-## Loading Data
+## Loading Training Data
 
 Use the class ``Loader`` to load data from Numpy or .ROOT files.
 ```py
@@ -38,7 +39,7 @@ loader = RootLoader(root_path)
 samples, labels = loader.load()
 ```
 
-## Generating Data
+## Generating Training Data
 
 Use the class ``Generator`` to generate data with a specific generation Strategy (for gaussian generators, these "Strategies" modify the covariance matrix for each generated gaussian)
 ``` py
@@ -68,20 +69,22 @@ train(model, data, cond, nepochs=nepochs, batch_size=batch_size,
     callbacks=callbacks)
 ```
 
-to load a saved model:
-``` py
-
-```
-
-to use a saved flow
-``` py
-
-```
-
-
 Look how a model network performs:
 ![The training loss of the flow as it trains. Plotted is the loss on the y-axis in log-scale against the epoch at which it was recorded on the x-axis. When the losss becomes negative, its absolute value is plotted.](readme_imgs/loss.png "The training losses of a flow with 10 bijections, 1 layer and 128 parameters per bijection.")
 
+
+## Generating New Data
+
+Generate new data from the trained flow by using the previously-built ``distribution`` and ``made_list`` using these commands (will be streamlined into one command/object).
+
+```py
+current_kwargs = {}
+for i in range(len(made_list) // 2):
+    current_kwargs[f"maf_{i}"] = {"conditional_input" : gen_cond}
+
+gen_data = dist.sample(ngen, bijector_kwargs=current_kwargs)
+gen_samples = loader.recover_new(gen_data)
+```
 
 ## Performing Analysis
 
