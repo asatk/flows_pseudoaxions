@@ -66,12 +66,14 @@ class SelectiveProgbarLogger(cb.ProgbarLogger):
     Progress bar that outputs at regularly-defined intervals.
     """
 
-    def __init__(self, verbose, epoch_interval, epoch_end, tstart, *args, **kwargs):
+    def __init__(self, verbose, epoch_interval, epoch_end, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.default_verbose = verbose
         self.epoch_interval = epoch_interval
         self.epoch_end = epoch_end
-        self.tsart = tstart
+
+    def on_train_begin(self, logs=None):
+        self.tstart = datetime.now()
     
     def on_epoch_begin(self, epoch, *args, **kwargs):
         self.verbose = (
@@ -80,11 +82,6 @@ class SelectiveProgbarLogger(cb.ProgbarLogger):
                 else self.default_verbose)
         if self.verbose:
             tnow = datetime.now()
-            dt = tnow - self.tsart
+            dt = tnow - self.tstart
             print("epoch begin: " + str(tnow) + " | time elapsed: " + str(dt))
         super().on_epoch_begin(epoch, *args, **kwargs)
-
-
-
-
-

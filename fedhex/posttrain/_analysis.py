@@ -11,12 +11,10 @@ import os
 from scipy.stats import chisquare, kstest
 from typing import Any
 
-from ..train.tf import MADEflow
+from ..train.tf import _MADEflow
 from ..utils import LOG_ERROR, LOG_FATAL, print_msg
 from .plot import hist_one, plot_all, plot_losses, plot_one, \
     make_genplot_kwargs, make_trnplot_kwargs
-from ..pretrain import dewhiten, whiten
-from ..io import Loader
 
 
 plt.rcParams.update({
@@ -66,7 +64,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     loader.load()
     trn_data = loader.get_data()
     trn_cond = loader.get_cond()
-    trn_samples, trn_labels = loader.recover_preproc()
+    trn_samples, trn_labels = loader.recover()
 
     # Group samples & labels by unique label
     labels_unique, inverse_unique = np.unique(trn_labels, return_inverse=True, axis=0)
@@ -93,7 +91,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
         gen_cond = gen_loader.get_cond()
         # Load conditional data that is already whitened from file. These data
         # need not be the  conditional data with which the network is trained.
-        gen_samples, gen_labels = gen_loader.recover_preproc()
+        gen_samples, gen_labels = gen_loader.recover()
 
     # Make a list of the unique labels and a list of their occurrence in gen_labels
     gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
@@ -182,7 +180,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     ### TOOL 2 - Plot Intermediate Output (assess each bijector's contribution)
     if 2 in tools:
         # Generate samples for each intermediate flow
-        flow_distributions = MADEflow.intermediate_flows_chain(made_list)
+        flow_distributions = _MADEflow.intermediate_flows_chain(made_list)
         for i, dist in enumerate(flow_distributions):
             gen_data_flow_i = dist.sample((gen_cond.shape[0], ), bijector_kwargs=current_kwargs)
             gen_samples_flow_i = loader.recover_new(gen_data_flow_i, is_cond=False)

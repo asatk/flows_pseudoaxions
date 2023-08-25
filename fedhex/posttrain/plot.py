@@ -13,8 +13,8 @@ import os
 from scipy.stats import chisquare, kstest
 from typing import Any
 
-from ..train.tf import MADEflow
-from ..io._path import LOG_ERROR, LOG_FATAL
+from ..train.tf import _MADEflow
+from ..utils import LOG_ERROR, LOG_FATAL
 
 plt.rcParams.update({
     "font.family": "serif"

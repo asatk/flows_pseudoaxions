@@ -4,6 +4,7 @@
 - [Getting Started](#getting-started)
   - [Loading Training Data](#loading-training-data)
   - [Generating Training Data](#generating-training-data)
+  - [Preprocessing Data](#preprocessing-data)
   - [Running An Experiment](#running-an-experiment)
   - [Generating New Data](#generating-new-data)
   - [Performing Analysis](#performing-analysis)
@@ -28,38 +29,47 @@ Create a new environment using (ana/mini)conda package manager:
 
 ```conda create -n flows3.10 --file requirements.txt```
 
-Check out an example notebook: ``nb.ipynb``
+Check out some tutorial notebooks: ``tut_gaus.ipynb`` and ``tut_root.ipynb``
 
 ## Loading Training Data
 
-Use the class ``Loader`` to load data from Numpy or .ROOT files.
+Use the class ``RootLoader`` to load data from Numpy or .ROOT files.
 ```py
-from fedhex.io import RootLoader
-loader = RootLoader(root_path)
-samples, labels = loader.load()
+import fedhex as fx
+rl = fx.RootLoader(root_path)
+samples, labels = rl.load()
 ```
+
 
 ## Generating Training Data
 
 Use the class ``Generator`` to generate data with a specific generation Strategy (for gaussian generators, these "Strategies" modify the covariance matrix for each generated gaussian)
 ``` py
-from fedhex.pretrain.generation import DiagCov, GridGaussGenerator, RepeatStrategy
+from fedhex.pretrain.generation import DiagCov, RepeatStrategy
 strat = RepeatStrategy(DiagCov(ndim=2, sigma=0.025))
-generator = GridGaussGenerator(cov_strat=strat, ndistx=5, ndisty=5)
-samples, labels = generator.generate()
+generator = fx.GridGaussGenerator(cov_strat=strat, ndistx=5, ndisty=5)
+samples, labels = generator.generate(nsamp=1000)
+```
+
+
+## Preprocessing Data
+
+Use any concrete subclass of `DataManager` subclass, e.g., `RootLoader` or `GridGaussGenerator` to pre-process the data using the `preproc()` function. The manager must have data loaded/generated to retrieve the network-ready data and conditional data:
+``` py
+data, cond = rl.preproc()
 ```
 
 
 ## Running An Experiment
-Use the class ``Manager`` to handle all of the model setup and running once all necessary parameters are provided.
+
+Use any concrete subclass of ``ModelManager``, e.g., `MADEManager` or `RNVPManager`, to handle all of the model setup and running once all necessary parameters are provided.
 
 Build a model with the given model parameters:
 ``` py
-from fedhex.train.tf import MADEManager
 # Create MADEManager instance with all parameters needed to build model
-mm = MADEManager(nmade=num_made, ninputs=num_inputs, ncinputs=num_cond_inputs,
-                 hidden_layers=hidden_layers, hidden_units=hidden_units,
-                 lr_tuple=lr_tuple)
+mm = fx.MADEManager(nmade=nmade, ninputs=ninputs, ncinputs=ncinputs,
+                    hidden_layers=hidden_layers, hidden_units=hidden_units,
+                    lr_tuple=lr_tuple)
 
 # Build model
 mm.compile_model()
@@ -68,19 +78,26 @@ mm.compile_model()
 Make the callbacks for training:
 ``` py
 # Make callbacks
+from fedhex.train import Checkpointer, EpochLossHistory, SelectiveProgbarLogger
+
 callbacks = []
-t = print_msg("Beginning Training")
-callbacks.append(SelectiveProgbarLogger(verbose=1, epoch_interval=10, epoch_end=nepochs, tstart=t))
-callbacks.append(Checkpointer(flow_path + "{epoch:03}.ckpt", save_freq=50 * nepochs))
+
+save_freq = 50 * batch_size
+callbacks.append(Checkpointer(filepath=flow_path, save_freq=save_freq))
+
+callbacks.append(EpochLossHistory(loss_path=loss_path))
+
+log_freq = 10
+callbacks.append(SelectiveProgbarLogger(1, epoch_interval=log_freq, epoch_end=end_epoch))
 ```
 
 Run a model with the given run parameters:
 
 ``` py
 # Run training procedure
-mm.train_model(data=data, cond=cond, nepochs=nepochs, batch_size=batch_size,
-               starting_epoch=starting_epoch, flow_path=flow_path,
-               callbacks=callbacks)
+mm.train_model(data=data, cond=cond, batch_size=batch_size,
+               starting_epoch=starting_epoch, end_epoch=end_epoch,
+               path=path, callbacks=callbacks)
 ```
 
 ## Generating New Data
@@ -89,13 +106,15 @@ Evaluate the model for specified conditional data:
 ``` py
 # Setup sample generation for a known training label
 ngen = 500
-gen_label = np.array([2464, 5.125])
-gen_labels = np.repeat([gen_label], ngen, axis=0)
-gen_cond = loader.preproc_new(samples=gen_labels, is_cond=True)
+gen_labels_unique = [0.5, 0.5]
+gen_labels = np.repeat([gen_labels_unique], ngen, axis=0)
+gen_cond = rl.norm(gen_labels, is_cond=True)
 
 # Generate data for the provided conditional data
 gen_data = mm.eval_model(gen_cond)
-gen_samples = loader.recover_new(gen_data)
+
+# Denormalize data using known transformation parameters
+gen_samples = rl.denorm(gen_data, is_cond=True)
 ```
 
 Look how a model network performs:

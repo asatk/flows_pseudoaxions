@@ -5,12 +5,11 @@ Modified: 2023.07.15
 I/O functions that verify or save to paths in the LFS (local file system).
 """
 
-# import argparse
+
 import json
 import os
 import shutil
 from typing import Callable
-
 
 from ..utils import LOG_DEBUG, LOG_ERROR, LOG_FATAL, LOG_INFO, LOG_WARN, MSG_QUIET, print_msg
 
@@ -113,7 +112,6 @@ def _replace_prompt(path: str, replace: bool=False, is_dir: bool=False):
 
 
 def save_config(path: str, params_dict: dict, save_all: bool=False) -> bool:
-
     """
     Save a configuration for a given service. The parameters passed to this
     function will be saved as a single dictionary in a .JSON file.
@@ -164,4 +162,3 @@ def load_config(path: str) -> dict|None:
         return None
     
     return config
-    

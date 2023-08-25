@@ -14,6 +14,8 @@ import uproot as up
 
 from ..utils import print_msg, LOG_WARN
 
+from ._data import threshold_data
+
 
 # Strings necessary for reading data from a ROOT TTree
 # These are likely to change - highly contingent upon what the cuts and vars
@@ -32,7 +34,7 @@ expressions = [
     phistr, omegastr, omegaidxstr, ptstr, ptidxstr, labelphistr, labelomegastr]
 
 
-def _find_root(data_dir, max_depth: int=3):
+def find_root(data_dir, max_depth: int=3):
     """
     Locate the paths to all of the .ROOT files in a given directory. This
     function is recursive and will only descend the number of subtrees as given
@@ -47,7 +49,7 @@ def _find_root(data_dir, max_depth: int=3):
                     print_msg("Maximum recursion depth reached.", level=LOG_WARN)
                     return file_list
                 else:
-                    list_subtree = _find_root(data_dir + "/" + entry.name, max_depth=max_depth-1)
+                    list_subtree = find_root(data_dir + "/" + entry.name, max_depth=max_depth-1)
                     file_list.extend(list_subtree)
             elif p.match(entry.name) is not None:
                 path = data_dir + "/" + entry.name
@@ -59,7 +61,7 @@ def _find_root(data_dir, max_depth: int=3):
     return file_list
 
 
-def _evt_sel_1(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def evt_sel_1(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     
     # cut out events that don't have a valid omega/pt to index
     omegaidxarr = arr[omegaidxstr]
@@ -105,36 +107,17 @@ def _evt_sel_1(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return samples, labels
 
 
-def _load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
+def load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
         tuple[np.ndarray]], expressions: list[str], cutstr: str,
-        event_thresh: int=100):
+        event_thresh: int=100, num_workers: int=1):
     """
     Load events from all provided .ROOT files using a given event selection
     scheme. 
     """
-        
-    num_workers = 4
+    
     arr = up.concatenate(root_paths, expressions=expressions, cut=cutstr,
         num_workers=num_workers, begin_chunk_size="2 MB", library="np")
 
-    samples_temp, labels_temp = event_selection_fn(arr)
+    samples, labels = event_selection_fn(arr)
 
-    # separate samples/labels into groups per label
-    labels_unique, inverse_unique = np.unique(labels_temp, return_inverse=True,
-        axis=0)
-    samples_grp = [
-        samples_temp[inverse_unique == i] for i in range(len(labels_unique))
-    ]
-
-    # compile samples and labels array
-    samples = np.zeros(shape=(0, samples_temp.shape[-1]))
-    labels = np.zeros(shape=(0, labels_temp.shape[-1]))
-
-    for i, sample_i in enumerate(samples_grp):
-        label_i = labels_unique[i]
-        # only include labels with sufficiently many statistics after cuts
-        if len(sample_i) >= event_thresh:
-            samples = np.r_[samples, sample_i]
-            labels = np.r_[labels, np.repeat([label_i], len(sample_i), axis=0)]
-
-    return samples, labels
+    return threshold_data(samples, labels, event_thresh=event_thresh)

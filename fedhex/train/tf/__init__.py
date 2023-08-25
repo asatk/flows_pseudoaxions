@@ -1,12 +1,14 @@
 """
 Author: Anthony Atkinson
-Modified: 2023.07.23
+Modified: 2023.08.24
 
-Tensorflow models
+Tensorflow models.
 """
 
-from .MADEflow import build_MADE, compile_MADE_model, intermediate_MADE, load_MADE, lossfn_MADE, MADE, MADEManager
+
+from ._MADEflow import build_MADE, compile_MADE_model, intermediate_MADE, load_MADE, lossfn_MADE, MADE
 from ._train import train
+
 
 __all__ = [
     "build_MADE",
@@ -15,6 +17,5 @@ __all__ = [
     "load_MADE",
     "lossfn_MADE",
     "MADE",
-    "MADEManager",
     "train"
 ]

@@ -2,8 +2,9 @@
 Author: Anthony Atkinson
 Modified: 2023.07.15
 
-Train a TF model.
+Train a TF MADE normalizing flow model.
 """
+
 
 import numpy as np
 from tensorflow.python.keras.models import Model
@@ -11,9 +12,10 @@ from tensorflow.python.keras.callbacks import Callback
 
 from ...io._path import print_msg
 
+
 # possibly place this in init or not
-def train(model: Model, data: np.ndarray, cond: np.ndarray, nepochs: int,
-          batch_size: int, starting_epoch: int=0, flow_path: str|None=None,
+def train(model: Model, data: np.ndarray, cond: np.ndarray, batch_size: int,
+          starting_epoch: int=0, end_epoch: int=1, flow_path: str|None=None,
           callbacks: list[Callback]=None) -> None:
     
 
@@ -45,7 +47,7 @@ def train(model: Model, data: np.ndarray, cond: np.ndarray, nepochs: int,
             y=np.zeros((data.shape[0], 0), dtype=np.float32),
             shuffle=True,
             batch_size=batch_size,
-            epochs=nepochs,
+            epochs=end_epoch,
             verbose=0,
             initial_epoch=starting_epoch,
             callbacks=callbacks)

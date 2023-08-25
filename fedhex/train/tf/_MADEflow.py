@@ -21,97 +21,7 @@ from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as 
 from typing import Any
 import numpy as np
 
-from ...io._path import LOG_WARN, LOG_ERROR, LOG_FATAL, print_msg, save_config
-from ..tf._train import train
-
-
-class MADEManager():
-    """
-    The details of building and training a model are self-contained within
-    this class.
-    """
-    def __init__(self, nmade: int, ninputs: int, ncinputs: int,
-                 hidden_layers: int, hidden_units: int,
-                 lr_tuple: tuple[int]) -> None:
-        
-        self._is_compiled = False
-        self._is_trained = False
-
-        self._nmade = nmade
-        self._ninputs = ninputs
-        self._ncinputs = ncinputs
-        self._hidden_layers = hidden_layers
-        self._hidden_units = hidden_units
-        self._lr_tuple = lr_tuple
-
-    def compile_model(self) -> None:
-        """
-        Compile a model with all of the necessary parameters. This Manager will
-        keep references to instances of tf.Model, tfd.TransformedDistribution,
-        and a list of MADE blocks, all used internally.
-        """
-        model, dist, made_list = compile_MADE_model(num_made=self._nmade,
-            num_inputs=self._ninputs, num_cond_inputs=self._ncinputs,
-            hidden_layers=self._hidden_layers, hidden_units=self._hidden_units,
-            lr_tuple=self._lr_tuple)
-        
-        self._model = model
-        self._dist = dist
-        self._made_list = made_list
-        self._is_compiled = True
-
-    def train_model(self, data, cond, nepochs, batch_size, starting_epoch=0,
-                    flow_path: str|None=None, callbacks: list=None) -> None:
-        """
-        Train the model once built.
-        """
-
-        if self._is_compiled is False:
-            print_msg("The model is not compiled. Please use the instance " + \
-                      "method `MADEManager.compile_model()` in order for " + \
-                      "this model to be trainable.", level=LOG_ERROR)
-            return
-
-        if callbacks == None:
-            callbacks = []
-
-        self._nepochs = nepochs
-        self._batch_size = batch_size
-        self._starting_epoch = starting_epoch
-        self._flow_path = flow_path
-        
-        train(self._model, data, cond, nepochs=nepochs, batch_size=batch_size,
-              starting_epoch=starting_epoch, flow_path=flow_path,
-              callbacks=callbacks)
-        self._is_trained = True
-        
-    def eval_model(self, cond) -> np.ndarray:
-
-        if self._is_trained is False:
-            print_msg("The model is not train. Please use the instance " + \
-                      "method `MADEManager.train_model()` in order for " + \
-                      "this model to be evaluatable.", level=LOG_ERROR)
-            return None
-        
-        # Generate samples
-        current_kwargs = {}
-        for i in range(len(self._made_list) // 2):
-            current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
-
-        gen_data = self._dist.sample(len(cond), bijector_kwargs=current_kwargs)
-        return gen_data
-    
-    def save_model(self, flow_path: str) -> None:
-        self._model.save(flow_path)
-
-    def save(self, config_path: str) -> None:
-        d = {"nmade": self._nmade, "ninputs": self._ninputs,
-             "ncinputs": self._ncinputs, "hidden_layers": self._hidden_layers,
-             "hidden_units": self._hidden_units, "lr_tuple": self._lr_tuple,
-             "nepochs": self._nepochs, "batch_size": self._batch_size,
-             "starting_epoch": self._starting_epoch,
-             "flow_path": self._flow_path}
-        save_config(config_path, d, save_all=False)
+from ...io._path import LOG_WARN, LOG_FATAL, print_msg
 
 
 class MADE(tfb.AutoregressiveNetwork):
@@ -171,6 +81,7 @@ class MADE(tfb.AutoregressiveNetwork):
         
         return config
 
+
 def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
         hidden_layers: int|list=1, hidden_units: int=128,
         activation: str="relu", cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list]:
@@ -215,6 +126,7 @@ def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
     
     return distribution, made_list
 
+
 def compile_MADE_model(num_made: int, num_inputs: int,
         num_cond_inputs: int=None, hidden_layers: int|list=1,
         hidden_units: int=128, lr_tuple: tuple=(1e-3, 1e-4, 100),
@@ -258,6 +170,17 @@ def compile_MADE_model(num_made: int, num_inputs: int,
             loss=lossfn_MADE)
 
     return model, distribution, made_list
+
+
+def eval_MADE(cond, made_list: list, dist: TransformedDistribution):
+    # Generate samples
+    current_kwargs = {}
+    for i in range(len(made_list) // 2):
+        current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
+
+    gen_data = dist.sample(len(cond), bijector_kwargs=current_kwargs)
+    return gen_data
+
 
 def lossfn_MADE(x, logprob):
     return -logprob

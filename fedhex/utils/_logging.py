@@ -14,7 +14,7 @@ from traceback import print_stack
 #TODO perhaps allow setting default msg type as well
 #TODO perhaps allow different time formats
 
-loglevel: int= 1
+loglevel: int=0
 
 LOG_INFO = 0
 LOG_DEBUG = 1
