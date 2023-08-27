@@ -9,9 +9,11 @@
   - [Generating New Data](#generating-new-data)
   - [Performing Analysis](#performing-analysis)
 
+
 # Current Bugs/Issues/"Features"
  - networks with multiple layers are not being saved or loaded correctly. They don't get evaluated correctly at the very least.
  - The checkpointing callback does not save exactly at the epoch interval desired. I think this is likely a rounding issue as it looks to save based on the n-th batch, not the n-th epoch. So dividing total data size by batchsize produces yields an extra training step in the epoch to finish the last batch/cover the remainder. The math for the saving frequency for ckpt does not take this into account. Perhaps find a way to align checkpointing with epochs, though this is more an aesthetic/meta-accuracy thing than critical to the model's success.
+
 
 # Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX) 
 
@@ -23,6 +25,7 @@ For example, a hypothetical interaction between two particles, yielding a scalar
 
 We wish to get the accuracy to within ~1% of MCMC-generated data.
 
+
 # Getting Started
 
 Create a new environment using (ana/mini)conda package manager:
@@ -30,6 +33,7 @@ Create a new environment using (ana/mini)conda package manager:
 ```conda create -n flows3.10 --file requirements.txt```
 
 Check out some tutorial notebooks: ``tut_gaus.ipynb`` and ``tut_root.ipynb``
+
 
 ## Loading Training Data
 
@@ -82,12 +86,12 @@ from fedhex.train import Checkpointer, EpochLossHistory, SelectiveProgbarLogger
 
 callbacks = []
 
-save_freq = 50 * batch_size
+save_freq = 50 * batch_size # Save model at checkpoints 50 epochs apart
 callbacks.append(Checkpointer(filepath=flow_path, save_freq=save_freq))
 
 callbacks.append(EpochLossHistory(loss_path=loss_path))
 
-log_freq = 10
+log_freq = 10 # Log training losses every 10 epochs
 callbacks.append(SelectiveProgbarLogger(1, epoch_interval=log_freq, epoch_end=end_epoch))
 ```
 
@@ -99,6 +103,7 @@ mm.train_model(data=data, cond=cond, batch_size=batch_size,
                starting_epoch=starting_epoch, end_epoch=end_epoch,
                path=path, callbacks=callbacks)
 ```
+
 
 ## Generating New Data
 
@@ -114,7 +119,7 @@ gen_cond = rl.norm(gen_labels, is_cond=True)
 gen_data = mm.eval_model(gen_cond)
 
 # Denormalize data using known transformation parameters
-gen_samples = rl.denorm(gen_data, is_cond=True)
+gen_samples = rl.denorm(gen_data, is_cond=False)
 ```
 
 Look how a model network performs:
@@ -122,6 +127,5 @@ Look how a model network performs:
 
 
 ## Performing Analysis
-
 
 ![Analysis of training and generated data for the same label. Four plots are shown: the top row showing each distribution individually, the bottom row showing them on the same plot with the same scale and their binned residuals.](readme_imgs/res.png "Comparison between training and generated data on label (Phi=2464, Omega=5.125)")
