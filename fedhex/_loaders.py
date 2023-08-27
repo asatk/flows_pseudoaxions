@@ -21,6 +21,11 @@ class Loader(DataManager):
         super().__init__()
         self._path = path
         self._data_dict = data_dict
+        self._thresh = 0
+
+        self.state_dict.update({
+            "load_path": self._path,
+        })
 
     @property
     def path(self) -> str:
@@ -53,6 +58,7 @@ class Loader(DataManager):
         return self.recover()
     
     def save_to_npy(self, path_npy: str):
+        self.state_dict.update({"save_path_npy": path_npy})
         save(path_npy, self._data_dict, allow_pickle=True)
 
     def save_to_root(self):
@@ -89,17 +95,32 @@ class RootLoader(Loader):
             relevant .ROOT path for data loaded or saved.
         """
         super().__init__(path=path, data_dict=data_dict)
+
+        # TODO add config param and add all relevant kws to obj
         
+    @property
+    def file_list(self):
+        return self._file_list
+
     def load(self, event_thresh: int=0, max_depth: int=3,
              event_selection_fn: Callable[[ndarray], tuple[ndarray]]=evt_sel_1,
              cutstr: str=DEFAULT_cut, exps: str=DEFAULT_exps) -> tuple[ndarray, ndarray]:
 
         self._thresh = event_thresh
 
-        file_list = find_root(self._path, max_depth=max_depth)
-        self._samples, self._labels = load_root(file_list,
+        self._file_list = find_root(self._path, max_depth=max_depth)
+        self._samples, self._labels = load_root(self._file_list,
             event_selection_fn=event_selection_fn, expressions=exps,
             cutstr=cutstr, event_thresh=event_thresh)
         self.has_original = True
+
+        self.state_dict.update({
+            "thresh": self._thresh,
+            "max_depth": max_depth,
+            "evt_sel_fn": event_selection_fn.__name__,
+            "cutstr": cutstr,
+            "exps": exps,
+            "file_list": self._file_list
+        })
         
         return self._samples, self._labels
