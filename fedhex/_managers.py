@@ -13,6 +13,7 @@ class DataManager(metaclass=abc.ABCMeta):
     def __init__(self):
         self.has_preprocessed = False
         self.has_original = False
+        self.state_dict = {}
 
     def __str__(self):
         return f"<<{self.__class__.__name__}>>"
@@ -54,14 +55,7 @@ class DataManager(metaclass=abc.ABCMeta):
         return self._data_dict
 
     def save(self, config_path: str) -> bool:
-
-        prefix = f"_{self.__class__.__name__}"
-        len_prefix = len(prefix)
-        
-        d = {k: v for k, v in self.__dict__.items() if k[0] != "_"}
-        d.update({k[len_prefix:]: v for k, v in self.__dict__.items() if k[len_prefix] == prefix})
-        
-        return save_config(config_path, d)
+        return save_config(config_path, self.state_dict)
     
     def preproc(self, epsilon: float=WHITEN_EPSILON) -> tuple[ndarray, ndarray]:
         if not self.has_preprocessed:
@@ -115,9 +109,9 @@ class DataManager(metaclass=abc.ABCMeta):
             return None
 
         if is_cond:
-            return whiten(samples, self.whiten_data, epsilon=epsilon, ret_dict=False)
-        else:
             return whiten(samples, self.whiten_cond, epsilon=epsilon, ret_dict=False)
+        else:
+            return whiten(samples, self.whiten_data, epsilon=epsilon, ret_dict=False)
         
     def denorm(self, data: ndarray, is_cond: bool=False) -> ndarray:
         if not self.has_preprocessed:
@@ -128,9 +122,9 @@ class DataManager(metaclass=abc.ABCMeta):
             return None
         
         if is_cond:
-            return dewhiten(data, self.whiten_data)
-        else:
             return dewhiten(data, self.whiten_cond)
+        else:
+            return dewhiten(data, self.whiten_data)
         
     def find(self, labels: ndarray) -> list[ndarray]:
         """
@@ -142,6 +136,11 @@ class DataManager(metaclass=abc.ABCMeta):
 
 
 class ModelManager(metaclass=abc.ABCMeta):
+
+    def __init__(self):
+        self.is_compiled = False
+        self.is_trained = False
+        self.state_dict = {}
 
     @abc.abstractmethod
     def compile_model(self) -> None:
@@ -158,5 +157,8 @@ class ModelManager(metaclass=abc.ABCMeta):
         ...
 
     @abc.abstractmethod
-    def save_model(self) -> bool:
+    def export_model(self, path: str) -> bool:
         ...
+
+    def save(self, config_path: str) -> bool:
+        return save_config(config_path, self.state_dict)

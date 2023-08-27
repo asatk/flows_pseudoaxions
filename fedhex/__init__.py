@@ -11,7 +11,7 @@ __version__ = "1.0.0"
 
 
 from ._generators import CircleGaussGenerator, LineGaussGenerator, GridGaussGenerator
-from ._loaders import NumpyLoader, RootLoader
+from ._loaders import Loader, NumpyLoader, RootLoader
 from ._managers import DataManager, ModelManager
 from ._modelmanagers import MADEManager
 
@@ -20,6 +20,7 @@ __all__ = [
     "CircleGaussGenerator",
     "LineGaussGenerator",
     "GridGaussGenerator",
+    "Loader",
     "NumpyLoader",
     "RootLoader",
     "DataManager",

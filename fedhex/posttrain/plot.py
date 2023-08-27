@@ -1,20 +1,13 @@
 """
 Author: Anthony Atkinson
-Modified: 2023.07.15
+Modified: 2023.08.27
 """
 
-import math
+
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-import multiprocessing as mp
 import numpy as np
-from numpy.typing import ArrayLike
-import os
-from scipy.stats import chisquare, kstest
-from typing import Any
 
-from ..train.tf import _MADEflow
-from ..utils import LOG_ERROR, LOG_FATAL
 
 plt.rcParams.update({
     "font.family": "serif"
@@ -84,16 +77,14 @@ def plot_losses(losses, out_path: str=None, show=False,
     '''
     
     # Parse keyword arguments
-    kwkeys = plot_args.keys()
-    title = "Loss vs. Epoch" if "title" not in kwkeys else plot_args["title"]
-    xlabel = "Epoch" if "xlabel" not in kwkeys else plot_args["xlabel"]
-    ylabel = "Loss (Negative Log Likelihood)" if "ylabel" not in kwkeys else plot_args["ylabel"]
+    title = plot_args.get("title", "Loss vs. Epoch")
+    xlabel = plot_args.get("xlabel", "Epoch")
+    ylabel = plot_args.get("ylabel", "Loss (Negative Log Likelihood)")
 
     # TODO check pos/neg len > 0
     # Separate loss data into positive and negative losses
     losses_nonneg = losses[losses[:, 1] >= 0]
     losses_neg = np.abs(losses[losses[:, 1] < 0])
-    turnover_epoch = losses[losses[:, 1] < 0][0, 0]
 
     # Plot losses
     fig, ax = plt.subplots()
@@ -102,14 +93,14 @@ def plot_losses(losses, out_path: str=None, show=False,
         ax.semilogy(losses_nonneg[:, 0], losses_nonneg[:, 1], c="blue", label="positive loss")
     if len(losses_neg) > 0:
         ax.semilogy(losses_neg[:, 0], losses_neg[:, 1], c="red", label="negative loss")
-    if len(turnover_epoch) > 0:
-        ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:,1 ]), colors=["gray"], linestyles="dashed")
+        turnover_epoch = losses[losses[:, 1] < 0][0, 0]
+        ax.vlines(turnover_epoch, ymin=np.min(losses[:, 1]), ymax=np.max(losses[:, 1]), colors=["gray"], linestyles="dashed")
     
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.legend()
     ax.xaxis.get_major_locator().set_params(integer=True)
+    ax.legend()
 
     if out_path is not None:
         fig.savefig(out_path)

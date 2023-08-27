@@ -111,7 +111,7 @@ def _replace_prompt(path: str, replace: bool=False, is_dir: bool=False):
         return True
 
 
-def save_config(path: str, params_dict: dict, save_all: bool=False) -> bool:
+def save_config(path: str, params_dict: dict) -> bool:
     """
     Save a configuration for a given service. The parameters passed to this
     function will be saved as a single dictionary in a .JSON file.
@@ -125,10 +125,6 @@ def save_config(path: str, params_dict: dict, save_all: bool=False) -> bool:
         Where the config file is saved
     params_dict : dict
         Dictionary of parameters desired to be saved.
-    save_all : bool (default=False)
-        Allows all members of a dictionary to be saved. This includes hidden
-        members that begin with '_'. This option is only useful if a user
-        desires to save the contents of an entire module.
 
     Returns
         bool, True if the config file does not already exist or if it is
@@ -138,12 +134,11 @@ def save_config(path: str, params_dict: dict, save_all: bool=False) -> bool:
 
     if os.path.isfile(path) and not _replace_prompt(path, replace=False, is_dir=False):
         return False
-
-    if save_all:
-        config = params_dict
-    else:
-        config = dict([item for item in params_dict.items() if not item[0].startswith('_')])
     
+    config = {}
+    for k, v in params_dict.items():
+        config.update({k: v})
+
     with open(path, "w") as config_file:
         json.dump(config, config_file, indent=4)
 
