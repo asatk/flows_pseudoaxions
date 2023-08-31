@@ -121,3 +121,62 @@ def load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
     samples, labels = event_selection_fn(arr)
 
     return threshold_data(samples, labels, event_thresh=event_thresh)
+
+def save_root(path, data_dict):
+    if not path.endswith(".ROOT"):
+        path = path + ".ROOT"
+    
+    indexer = 0 #Used to index label indices for training data
+
+    with up.recreate(path) as file:
+        
+        #Get data from data_dict
+        gen_labels = data_dict.get("gen_labels")
+        gen_samples = data_dict.get("gen_samples")
+        
+        #Get unique labels and location of each label in gen_labels, then group by label
+        gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
+        gen_samples_grp = [
+        gen_samples[gen_inverse_unique == i] for i in range(len(gen_labels_unique))
+        ]
+        
+        #TTree dictionary
+        ttree_dict = {}
+
+        #Initialize Branches/Columns
+        ttree_dict["numLabels"] = []
+        ttree_dict["isGen"] = []
+        ttree_dict["labelIndex"] = []
+        ttree_dict["data"] = []
+        ttree_dict["label"] = []
+
+        #Populate branches with generated data
+        for i, label in enumerate(gen_labels_unique):
+            for j in range(len(gen_samples_grp[i])):
+                ttree_dict["numLabels"].append([len(label)])
+                ttree_dict["isGen"].append([1])
+                ttree_dict["labelIndex"].append([i])
+                ttree_dict["data"].append([gen_samples_grp[i][j][k] for k in range(len(label))])
+                ttree_dict["label"].append([label[k] for k in range(len(label))])
+            indexer+=1
+
+        #If training data is in data dict, write it to the root file
+        if("trn_samples" in data_dict and "trn_labels" in data_dict):
+            trn_labels = data_dict.get("trn_labels")
+            trn_samples = data_dict.get("trn_samples")
+            
+            trn_labels_unique, trn_inverse_unique = np.unique(trn_labels, return_inverse=True, axis=0)
+            trn_samples_grp = [
+            trn_samples[trn_inverse_unique == i] for i in range(len(trn_labels_unique))
+            ]
+            
+            #Populate branches with training data
+            for i, label in enumerate(trn_labels_unique):
+                for j in range(len(trn_samples_grp[i])):
+                    ttree_dict["numLabels"].append([len(label)])
+                    ttree_dict["isGen"].append([0])
+                    ttree_dict["labelIndex"].append([i + indexer])
+                    ttree_dict["data"].append([trn_samples_grp[i][j][k] for k in range(len(label))])
+                    ttree_dict["label"].append([label[k] for k in range(len(label))])
+
+        file["tree"] = ttree_dict
