@@ -6,6 +6,7 @@ from numpy import ndarray, save
 from typing import Callable
 
 from .io import DEFAULT_cut, DEFAULT_exps, evt_sel_1, find_root, load_data_dict, load_numpy, load_root
+from .io._root import save_root
 from .utils import LOG_ERROR, print_msg
 
 from ._managers import DataManager
@@ -61,11 +62,12 @@ class Loader(DataManager):
         self.state_dict.update({"save_path_npy": path_npy})
         save(path_npy, self._data_dict, allow_pickle=True)
 
-    def save_to_root(self):
+    def save_to_root(self, save_root_path: str):
         """
         Darshan's ROOT saving tool (uses self.path since it points to .ROOT)
         """
-        pass
+        self.state_dict.update({"save_root_path": save_root_path})
+        save_root(save_root_path, self._data_dict)
 
 
 class NumpyLoader(Loader):
