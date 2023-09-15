@@ -5,8 +5,7 @@ Classes that load data.
 from numpy import ndarray, save
 from typing import Callable
 
-from .io import DEFAULT_cut, DEFAULT_exps, evt_sel_1, find_root, load_data_dict, load_numpy, load_root
-from .io._root import save_root
+from .io import DEFAULT_cut, DEFAULT_exps, evt_sel_1, find_root, load_data_dict, load_numpy, load_root, save_root
 from .utils import LOG_ERROR, print_msg
 
 from ._managers import DataManager
@@ -62,12 +61,22 @@ class Loader(DataManager):
         self.state_dict.update({"save_path_npy": path_npy})
         save(path_npy, self._data_dict, allow_pickle=True)
 
-    def save_to_root(self, save_root_path: str):
+    def save_to_root(self, save_root_path: str, custom:bool = True):
         """
-        Darshan's ROOT saving tool (uses self.path since it points to .ROOT)
+        save_root_path: str
+            path to create .ROOT to be saved to, .ROOT added if not present
+            
+        custom: bool
+            if True, the keys of the data_dict will be the branches 
+            of the TTree and the corresponding values of the dict
+            will populate those branches.
+            
+            if False, the data_dict must be in the format of 
+            {"gen_samples": gen_samples, "gen_labels": gen_labels, "trn_samples": samples, "trn_labels": labels}.
+            Training samples/labels are optional. Labels must be repeated to be the same dimensions as samples.
         """
         self.state_dict.update({"save_root_path": save_root_path})
-        save_root(save_root_path, self._data_dict)
+        save_root(save_root_path, self._data_dict, custom)
 
 
 class NumpyLoader(Loader):

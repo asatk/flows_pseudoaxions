@@ -122,17 +122,22 @@ def load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
 
     return threshold_data(samples, labels, event_thresh=event_thresh)
 
-def save_root(path, data_dict):
+def save_root(path, data_dict, custom):
     if not path.endswith(".ROOT"):
         path = path + ".ROOT"
     
     indexer = 0 #Used to index label indices for training data
 
+    if custom:
+        with up.recreate(path) as file:
+             file["tree"] = data_dict
+        return
+        
     with up.recreate(path) as file:
         
         #Get data from data_dict
-        gen_labels = data_dict.get("gen_labels")
-        gen_samples = data_dict.get("gen_samples")
+        gen_labels = data_dict.get("gen_labels", data_dict[list(data_dict.keys())[0]])
+        gen_samples = data_dict.get("gen_samples", data_dict[list(data_dict.keys())[1]])
         
         #Get unique labels and location of each label in gen_labels, then group by label
         gen_labels_unique, gen_inverse_unique = np.unique(gen_labels, return_inverse=True, axis=0)
@@ -162,8 +167,8 @@ def save_root(path, data_dict):
 
         #If training data is in data dict, write it to the root file
         if("trn_samples" in data_dict and "trn_labels" in data_dict):
-            trn_labels = data_dict.get("trn_labels")
-            trn_samples = data_dict.get("trn_samples")
+            trn_labels = data_dict.get("trn_labels", data_dict[list(data_dict.keys())[2]])
+            trn_samples = data_dict.get("trn_samples", data_dict[list(data_dict.keys())[3]])
             
             trn_labels_unique, trn_inverse_unique = np.unique(trn_labels, return_inverse=True, axis=0)
             trn_samples_grp = [
