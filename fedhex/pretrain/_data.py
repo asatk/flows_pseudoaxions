@@ -15,7 +15,8 @@ from ..utils import LOG_WARN, LOG_ERROR, LOG_FATAL, print_msg
 
 # TODO perhaps use kwargs instead?? and save those as whiten data?
 def whiten(data: np.ndarray, whiten_data: dict|None=None,
-        epsilon: float=WHITEN_EPSILON, ret_dict: bool=False) -> tuple[np.ndarray, dict[str, float]]:
+           use_logit: bool=False, epsilon: float=WHITEN_EPSILON,
+           ret_dict: bool=False) -> tuple[np.ndarray, dict[str, float]]:
     # TODO update docstring
     """
     Standardize the data to make it more 'network-friendly'. Whitened data
@@ -47,33 +48,40 @@ def whiten(data: np.ndarray, whiten_data: dict|None=None,
         min_norm = whiten_data["min"]
         max_norm = whiten_data["max"]
     else:
-        min_norm = np.min(data, axis=0) - epsilon
-        max_norm = np.max(data, axis=0) + epsilon
+        
+        min_norm = np.min(data, axis=0)
+        max_norm = np.max(data, axis=0)
+        
+        # Add tiny constant to prevent nan/inf when using logit/exponential
+        if use_logit:
+            min_norm -= epsilon
+            max_norm += epsilon
 
     # confine data to the unit interval [0., 1.]
     data_unit = (data - min_norm) / (max_norm - min_norm)
 
     # apply 'logit' transform to map unit interval to (-inf, +inf)
-    data_logit = np.log(1 / ((1 / data_unit) - 1))
+    if use_logit:
+        data_unit = np.log(1 / ((1 / data_unit) - 1))
 
     if whiten_data is not None:
         mean_norm = whiten_data["mean"]
         std_norm = whiten_data["std"]
     else:
-        mean_norm = np.mean(data_logit, axis=0)
-        std_norm = np.std(data_logit, axis=0)
+        mean_norm = np.mean(data_unit, axis=0)
+        std_norm = np.std(data_unit, axis=0)
         whiten_data = {"min": min_norm, "max": max_norm, "mean": mean_norm,
                        "std": std_norm, "epsilon": epsilon}
 
     # standardize the data to have 0 mean and unit variance
-    data_norm = (data_logit - mean_norm) / std_norm
+    data_norm = (data_unit - mean_norm) / std_norm
  
     if ret_dict:
         return data_norm, whiten_data
     return data_norm
 
 
-def dewhiten(data_norm: np.ndarray, whiten_data: dict) -> np.ndarray:
+def dewhiten(data_norm: np.ndarray, whiten_data: dict, use_logit: bool=False) -> np.ndarray:
     # TODO update docstring
     """
     Invert the standardized data that were output from the network into values
@@ -93,10 +101,11 @@ def dewhiten(data_norm: np.ndarray, whiten_data: dict) -> np.ndarray:
     
 
     # invert the standardized values from the mean and std
-    data_logit = data_norm * std_norm + mean_norm
+    data_unit = data_norm * std_norm + mean_norm
 
     # apply inverse 'logit' transform to map from (-inf, +inf) to unit interval
-    data_unit = 1 / (1 + np.exp(-data_logit))
+    if use_logit:
+        data_unit = 1 / (1 + np.exp(-data_unit))
     
     # shift data from unit interval back to its intended interval
     data = data_unit * (max_norm - min_norm) + min_norm
