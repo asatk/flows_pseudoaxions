@@ -55,13 +55,14 @@ def find_root(data_dir, max_depth: int=3):
                 path = data_dir + "/" + entry.name
                 if os.stat(path).st_size == 0:
                     print_msg(f"--- {path}: empty file ---", level=LOG_WARN)
-                    return []
-                return [path + ":Events;1"]
+                else:
+                    file_list.append(path + ":Events;1")
             
     return file_list
 
 
 def evt_sel_1(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    print("in evtsel1")
     
     # cut out events that don't have a valid omega/pt to index
     omegaidxarr = arr[omegaidxstr]
@@ -94,6 +95,8 @@ def evt_sel_1(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         else:
             omega_temp[i] = np.nan
 
+    print("after omega/indexing loop")
+
     # copy only the events that satisfy the cut
     cutarr = np.isfinite(omega_temp)
     newphi = phi[cutarr].copy()
@@ -114,9 +117,11 @@ def load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
     Load events from all provided .ROOT files using a given event selection
     scheme. 
     """
+
+    print("pre concat")
     
     arr = up.concatenate(root_paths, expressions=expressions, cut=cutstr,
-        num_workers=num_workers, begin_chunk_size="2 MB", library="np")
+        num_workers=num_workers, begin_chunk_size="250 MB", library="np")
 
     samples, labels = event_selection_fn(arr)
 

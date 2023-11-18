@@ -1,5 +1,7 @@
 from numpy import ndarray
 
+import os
+import shutil
 from .io import save_config
 from .train.tf import train
 from .train.tf._MADEflow import compile_MADE_model, eval_MADE
@@ -78,6 +80,10 @@ class MADEManager(ModelManager):
             "starting_epoch": starting_epoch,
             "model_path": path
         })
+
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        os.mkdir(path)
         
         train(self._model, data, cond, end_epoch=end_epoch, batch_size=batch_size,
               starting_epoch=starting_epoch, flow_path=path,
