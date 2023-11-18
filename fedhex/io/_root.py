@@ -123,8 +123,8 @@ def load_root(root_paths, event_selection_fn: Callable[[np.ndarray],
     return threshold_data(samples, labels, event_thresh=event_thresh)
 
 def save_root(path, data_dict, custom):
-    if not path.endswith(".ROOT"):
-        path = path + ".ROOT"
+    if not path.lower().endswith(".root"):
+        path = path + "root_out.root"
     
     indexer = 0 #Used to index label indices for training data
 
