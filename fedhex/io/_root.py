@@ -37,8 +37,8 @@ expressions = [
 def find_root(data_dir, max_depth: int=3):
     """
     Locate the paths to all of the .ROOT files in a given directory. This
-    function is recursive and will only descend the number of subtrees as given
-    by `max_depth`.
+    function is recursive and will only descend the number of sub directories
+    as given by `max_depth`.
     """
     p = re.compile(".+\.ROOT$", re.IGNORECASE)
     file_list = []

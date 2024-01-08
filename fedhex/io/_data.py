@@ -103,11 +103,14 @@ def save_data_dict(data_dict_path: str, data: np.ndarray, cond: np.ndarray,
 
     np.save(data_dict_path, training_data, allow_pickle=True)
 
+
 def threshold_data(samples: np.ndarray, labels: np.ndarray, event_thresh: int=100) -> tuple[np.ndarray, np.ndarray]:
     """
     Threshold samples based on the number of events associated with each
     sample's corresponding label.
     """
+
+    print(f"threshold data to {event_thresh} events")
 
     # separate samples/labels into groups per label
     labels_unique, inverse_unique = np.unique(labels, return_inverse=True,

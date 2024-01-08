@@ -115,14 +115,15 @@ class RootLoader(Loader):
 
     def load(self, event_thresh: int=0, max_depth: int=3,
              event_selection_fn: Callable[[ndarray], tuple[ndarray]]=evt_sel_1,
-             cutstr: str=DEFAULT_cut, exps: str=DEFAULT_exps) -> tuple[ndarray, ndarray]:
+             cutstr: str=DEFAULT_cut, exps: str=DEFAULT_exps,
+             num_workers: int=1) -> tuple[ndarray, ndarray]:
 
         self._thresh = event_thresh
 
         self._file_list = find_root(self._path, max_depth=max_depth)
         self._samples, self._labels = load_root(self._file_list,
             event_selection_fn=event_selection_fn, expressions=exps,
-            cutstr=cutstr, event_thresh=event_thresh)
+            cutstr=cutstr, event_thresh=event_thresh, num_workers=num_workers)
         self.has_original = True
 
         self.state_dict.update({
