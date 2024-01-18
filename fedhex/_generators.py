@@ -1,6 +1,7 @@
 import abc
 import numpy as np
 from numpy import ndarray
+from typing import Self
 
 from .constants import DEFAULT_SEED, WHITEN_EPSILON
 from .pretrain.generation import CovModStrategy, NoneMod, sample_gaussian
@@ -144,3 +145,7 @@ class GridGaussGenerator(GaussGenerator):
         self.has_original = True
 
         return samples, labels
+    
+    @classmethod
+    def import_cfg(cls: Self, config_path: str):
+        print(f"{str(cls)}:{config_path}")

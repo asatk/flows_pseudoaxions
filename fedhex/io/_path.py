@@ -145,7 +145,7 @@ def save_config(path: str, params_dict: dict) -> bool:
     return True
 
 
-def load_config(path: str) -> dict|None:
+def load_config(path: str) -> dict:
 
     with open(path, "r") as json_file:
         config = json.load(json_file)
@@ -154,6 +154,6 @@ def load_config(path: str) -> dict|None:
         print_msg(f"Config file at '{path}' is not of the correct format." + \
                   "These data must be saved as a single dictionary.",
                   level=LOG_ERROR)
-        return None
+        return {}
     
     return config
