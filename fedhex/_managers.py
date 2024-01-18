@@ -1,10 +1,10 @@
 import abc
 from numpy import ndarray
+from typing import Self
 
 from .constants import WHITEN_EPSILON
 from .io import save_config
 from .pretrain import dewhiten, whiten
-from .posttrain import intersect_labels
 from .utils import LOG_ERROR, print_msg
 
 
@@ -54,7 +54,12 @@ class DataManager(metaclass=abc.ABCMeta):
     def data_dict(self) -> dict:
         return self._data_dict
 
-    def save(self, config_path: str) -> bool:
+    @classmethod
+    @abc.abstractmethod
+    def import_cfg(cls: Self, config_path: str) -> Self:
+        ...
+
+    def export_cfg(self, config_path: str) -> bool:
         return save_config(config_path, self.state_dict)
     
     def preproc(self, epsilon: float=WHITEN_EPSILON) -> tuple[ndarray, ndarray]:
@@ -125,14 +130,6 @@ class DataManager(metaclass=abc.ABCMeta):
             return dewhiten(data, self.whiten_cond)
         else:
             return dewhiten(data, self.whiten_data)
-        
-    def find(self, labels: ndarray) -> list[ndarray]:
-        """
-        Returns the samples correspdoning to the label in the data if they
-        exist.
-        """
-        pass
-        # TODO impl with intersect_labels
 
 
 class ModelManager(metaclass=abc.ABCMeta):
