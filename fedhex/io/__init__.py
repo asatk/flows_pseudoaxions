@@ -9,7 +9,7 @@ Provides all necessary I/O functions
 from ._data import load_data_dict, save_data_dict, threshold_data
 from ._numpy import load_numpy
 from ._path import init_service, load_config, save_config
-from ._root import evt_sel_1, find_root, load_root, save_root, cutstr as DEFAULT_cut, expressions as DEFAULT_exps
+from ._root import find_root, load_root, save_root
 
 
 __all__ = [
@@ -20,10 +20,10 @@ __all__ = [
     "init_service",
     "load_config",
     "save_config",
-    "evt_sel_1",
     "find_root",
     "load_root",
     "save_root",
-    "DEFAULT_cut",
-    "DEFAULT_exps"
+    "DEFAULT_CUTS",
+    "DEFAULT_DEFS",
+    "DEFAULT_EXPS"
 ]

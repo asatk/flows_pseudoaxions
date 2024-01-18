@@ -80,6 +80,12 @@ class MADE(tfb.AutoregressiveNetwork):
                        "name": self.name})
         
         return config
+    
+    # @classmethod
+    # def from_config(cls, config):
+    #     sublayer_config = config.pop("")
+    #     sublayer = tfk.saving.deserialize_keras_object(sublayer_config)
+    #     return cls(sublayer, **config)
 
 
 def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
@@ -181,7 +187,7 @@ def eval_MADE(cond, made_list: list, dist: TransformedDistribution):
     gen_data = dist.sample(len(cond), bijector_kwargs=current_kwargs)
     return gen_data
 
-
+@tfk.saving.register_keras_serializable(name="lossfn_MADE")
 def lossfn_MADE(x, logprob):
     return -logprob
 
@@ -257,7 +263,7 @@ def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any
     try:
         for i, key in enumerate(build_model_keys):
             eval(f"{key} = config_dict[{key}]")
-            if not isinstance(eval(f"{key}"), int):
+            if not isinstance(eval(key), int):
                 raise TypeError()
     except KeyError:
         print_msg(f"Config file {config_path} lacks entry `{key}",

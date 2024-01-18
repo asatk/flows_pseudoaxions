@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 import multiprocessing as mp
 import numpy as np
 import os
-from scipy.stats import chisquare, kstest
+# from scipy.stats import chisquare, kstest
 from typing import Any
 
 from ..train.tf import _MADEflow
@@ -474,7 +474,8 @@ def test_chi(obs: np.ndarray, exp: np.ndarray, axes: list[int],
     obs_h_chi = obs_h[good_categories]
     exp_h_chi = exp_h[good_categories]
 
-    chi2, pval = chisquare(obs_h_chi, exp_h_chi, ddof=1)
+    # chi2, pval = chisquare(obs_h_chi, exp_h_chi, ddof=1)
+    chi2, pval = (0., 0.)
 
     if chi2 == np.inf:
         print_msg("chi2 analysis failed", level=LOG_ERROR)
@@ -503,7 +504,8 @@ def test_ks(obs: np.ndarray, exp: np.ndarray, axes: list[int],
     obs_h, _ = project(obs, axes, bins, ndim=1)
     exp_h, _ = project(exp, axes, bins, ndim=1)
         
-    result = kstest(obs_h, exp_h)
+    # result = kstest(obs_h, exp_h)
+    result = None
     return result.statistic, result.pvalue
 
 

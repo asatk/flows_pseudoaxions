@@ -110,8 +110,6 @@ def threshold_data(samples: np.ndarray, labels: np.ndarray, event_thresh: int=10
     sample's corresponding label.
     """
 
-    print(f"threshold data to {event_thresh} events")
-
     # separate samples/labels into groups per label
     labels_unique, inverse_unique = np.unique(labels, return_inverse=True,
         axis=0)
