@@ -89,6 +89,7 @@ class Loader(DataManager):
         self.state_dict.update({"save_path_npy": path_npy})
         save(path_npy, self._data_dict, allow_pickle=True)
 
+    #********FUNCTION IS OBSOLETE***********
     def save_to_root(self, save_root_path: str, custom:bool = True):
         """
         save_root_path: str
