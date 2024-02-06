@@ -1,5 +1,4 @@
-<!--flows README-->
-- [Current Bugs/Issues/"Features"](#current-bugsissuesfeatures)
+<!--FEDHEX README-->
 - [Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX)](#goals-of-flows-enriched-data-generation-for-high-energy-experiment-fedhex)
 - [Getting Started](#getting-started)
   - [Loading Training Data](#loading-training-data)
@@ -10,16 +9,13 @@
   - [Performing Analysis](#performing-analysis)
 
 
-# Current Bugs/Issues/"Features"
- - networks with multiple layers are not being saved or loaded correctly. They don't get evaluated correctly at the very least.
- - The checkpointing callback does not save exactly at the epoch interval desired. I think this is likely a rounding issue as it looks to save based on the n-th batch, not the n-th epoch. So dividing total data size by batchsize produces yields an extra training step in the epoch to finish the last batch/cover the remainder. The math for the saving frequency for ckpt does not take this into account. Perhaps find a way to align checkpointing with epochs, though this is more an aesthetic/meta-accuracy thing than critical to the model's success.
-
-
 # Goals of Flows-Enriched Data Generation for High-Energy EXperiment (FEDHEX) 
 
-Given a sparse collection of event distributions in an N-dimensional parameter space, we want to interpolate between the given distributions to generate new distributions
+The standard tool for simulating high-energy particle physics interactions has been Markov Chain Monte Carlo (MCMC) for many years. MCMC served as one of the first rigorous statistical methods for sampling from any distribution; however, its reign as the de facto simulation tool for particle physics will not last much longer. In the age of machine learning, diffusion models like "normalizing flows" have been pushing the limits of what generative ML can do, especially in the context of density estimation. With FEDHEX, we have created a user-friendly library that allows anyone with basic computer skills to wield the power of these flows.
 
-For example, a hypothetical interaction between two particles, yielding a scalar $\Phi$ and pseudoaxion (pseudoscalar) $\omega$, can be modelled as such.
+Our use case for normalizing flows is to estimate the joint distribution of reconstructed masses for two hypothetical particles conditioned on their input masses. The goal of FEDHEX is essentially to take the place of MCMC in high-energy particle simulations.
+
+Given a sparse collection of event distributions in an N-dimensional parameter space, we want to interpolate between the given distributions to generate new distributions. For example, a hypothetical interaction between two particles, yielding a scalar $\Phi$ and pseudoaxion (pseudoscalar) $\omega$, can be modeled as such.
 
 ![Sparse grid of distributions between which our framework can estimate an intermediate distribution by interpolating the features of nearby distributions.](readme_imgs/plotroot.png "10x10 Sparse Grid of Reconstructed Particle Masses")
 
@@ -28,11 +24,9 @@ We wish to get the accuracy to within ~1% of MCMC-generated data.
 
 # Getting Started
 
-Create a new environment using (ana/mini)conda package manager:
+Create a new environment using the (ana/mini)conda package manager:
 
-```conda create -n flows3.10 --file requirements.txt```
-
-Check out some tutorial notebooks: ``tut_gaus.ipynb`` and ``tut_root.ipynb``
+```conda create -n flows -f environment.yml```
 
 
 ## Loading Training Data
