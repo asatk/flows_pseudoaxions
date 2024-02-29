@@ -13,7 +13,6 @@ import json
 import os
 import tensorflow as tf
 from tensorflow import keras as tfk
-from tensorflow.python.keras.models import load_model as kload_model, Model
 from tensorflow_probability.python import distributions as tfd
 from tensorflow_probability.python.distributions import TransformedDistribution
 from tensorflow_probability.python import bijectors as tfb
@@ -23,7 +22,7 @@ import numpy as np
 
 from ...io._path import LOG_WARN, LOG_FATAL, print_msg
 
-
+@tfk.saving.register_keras_serializable(name="Made")
 class MADE(tfb.AutoregressiveNetwork):
     """
     A duplicate of tfp.bijectors.AutoregressiveNetwork class with tanh applied
@@ -40,7 +39,7 @@ class MADE(tfb.AutoregressiveNetwork):
                  kernel_regularizer=None, bias_regularizer=None,
                  kernel_constraint=None, bias_constraint=None,
                  validate_args=False, **kwargs):
-        
+
         super().__init__(
             params=params, event_shape=event_shape, conditional=conditional,
             conditional_event_shape=conditional_event_shape,
@@ -59,6 +58,7 @@ class MADE(tfb.AutoregressiveNetwork):
         self.conditional_event_shape = conditional_event_shape
         self.hidden_units = hidden_units
         self.activation = activation
+        
     
     def call(self, x, conditional_input=None):
         
@@ -88,9 +88,15 @@ class MADE(tfb.AutoregressiveNetwork):
     #     return cls(sublayer, **config)
 
 
-def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
-        hidden_layers: int|list=1, hidden_units: int=128,
-        activation: str="relu", cond_event_shape: tuple=None)-> tuple[TransformedDistribution, list]:
+def build_MADE(made_blocks: list,
+               num_inputs: int,
+               num_made: int=10,
+               hidden_layers: int|list=1,
+               hidden_units: int=128,
+               activation: str="relu",
+               cond_event_shape: tuple=None)-> tuple[
+                   TransformedDistribution,
+                   list]:
 
     if cond_event_shape is None:
         cond_event_shape = (num_inputs, )
@@ -109,8 +115,7 @@ def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
             hidden_units_list = hidden_layers * [hidden_units]
         
         for i in range(num_made):
-            #TODO check that params should be 2 ^ refer to above from tutorial
-            # Yes, I believe so: scale & shift params are all we need
+            # 2 params indicates 1 param for each the scale and the shift
             made = MADE(params=2, hidden_units=hidden_units_list,
                 event_shape=(num_inputs,), conditional=True,
                 conditional_event_shape=cond_event_shape,
@@ -133,11 +138,16 @@ def build_MADE(made_blocks: list, num_inputs: int, num_made: int=10,
     return distribution, made_list
 
 
-def compile_MADE_model(num_made: int, num_inputs: int,
-        num_cond_inputs: int=None, hidden_layers: int|list=1,
-        hidden_units: int=128, lr_tuple: tuple=(1e-3, 1e-4, 100),
-        activation: str="relu") -> tuple[tfk.Model, TransformedDistribution, list[Any]]:
-    # TODO add docstring though this is mostly an internal method - do later
+def compile_MADE_model(num_made: int,
+                       num_inputs: int,
+                       num_cond_inputs: int=None,
+                       hidden_layers: int|list=1,
+                       hidden_units: int=128,
+                       activation: str="relu",
+                       lr_tuple: tuple=(1e-3, 1e-4, 100)) -> tuple[
+                           tfk.Model,
+                           TransformedDistribution,
+                           list[Any]]:
     """
     Build new model from scratch
     """
@@ -223,7 +233,11 @@ def intermediate_MADE(made_list):
     return feat_extraction_dists
 
 
-def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any, list[Any]]:
+def load_MADE(flow_path: str|None=None,
+              newmodel: bool=True)-> tuple[
+                  tfk.Model,
+                  TransformedDistribution,
+                  list[Any]]:
     """
     Retrieve the Keras SavedModel, the tfb TransformedDistribution, and the
     list of MADE blocks from the desired model. Either a new model and its
@@ -246,6 +260,8 @@ def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any
         print_msg(f"The model at '{flow_path}' is missing the model config " +
                   f"file at {config_path}. A new model is going to be " +
                   f"created at '{flow_path}'.", level=LOG_WARN)
+        return tuple(None, None, None)
+    
     with open(config_path, "r") as config_file:
         config_dict = json.load(config_file)
 
@@ -253,6 +269,7 @@ def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any
         print_msg(f"Config file {config_path} is incorrectly formatted." +
                   "It must only consist of one dictionary of all relevant" +
                   "parameters.", level=LOG_FATAL)
+        return tuple(None, None, None)
     # Retrieve configuration parameters
 
     # TODO try the t/e block once things are working smoothly
@@ -274,8 +291,8 @@ def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any
     """
     # until then, allow the keyerror and exit
     nmade = config_dict["nmade"]
-    ndim = config_dict["ndim"]
-    ndim_label = config_dict["ndim_label"]
+    ndim = config_dict["ninputs"]
+    ndim_label = config_dict["ncinputs"]
     hidden_layers = config_dict["hidden_layers"]
     hidden_units = config_dict["hidden_units"]
 
@@ -299,7 +316,7 @@ def load_MADE(flow_path: str|None=None, newmodel: bool=True) -> tuple[Model, Any
     else:
         # Define model's custom objects
         custom_objects = {"lossfn_MADE": lossfn_MADE, "Made": MADE}
-        model = kload_model(flow_path, custom_objects=custom_objects)
+        model = tfk.models.load_model(flow_path, custom_objects=custom_objects)
         made_blocks = []
         for i in range(nmade):
             made_blocks.append(model.get_layer(name=f"made_{i}"))
