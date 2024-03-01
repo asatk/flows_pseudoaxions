@@ -188,13 +188,13 @@ def compile_MADE_model(num_made: int,
     return model, distribution, made_list
 
 
-def eval_MADE(cond, made_list: list, dist: TransformedDistribution):
+def eval_MADE(cond, made_list: list, dist: TransformedDistribution, seed: int=0x2024):
     # Generate samples
     current_kwargs = {}
     for i in range(len(made_list) // 2):
         current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
 
-    gen_data = dist.sample(len(cond), bijector_kwargs=current_kwargs)
+    gen_data = dist.sample(len(cond), seed=seed, bijector_kwargs=current_kwargs)
     return gen_data
 
 @tfk.saving.register_keras_serializable(name="lossfn_MADE")
@@ -237,7 +237,8 @@ def load_MADE(flow_path: str|None=None,
               newmodel: bool=True)-> tuple[
                   tfk.Model,
                   TransformedDistribution,
-                  list[Any]]:
+                  list[Any],
+                  dict[str, Any]]:
     """
     Retrieve the Keras SavedModel, the tfb TransformedDistribution, and the
     list of MADE blocks from the desired model. Either a new model and its
@@ -260,7 +261,7 @@ def load_MADE(flow_path: str|None=None,
         print_msg(f"The model at '{flow_path}' is missing the model config " +
                   f"file at {config_path}. A new model is going to be " +
                   f"created at '{flow_path}'.", level=LOG_WARN)
-        return tuple(None, None, None)
+        return tuple(None, None, None, None)
     
     with open(config_path, "r") as config_file:
         config_dict = json.load(config_file)
@@ -269,7 +270,7 @@ def load_MADE(flow_path: str|None=None,
         print_msg(f"Config file {config_path} is incorrectly formatted." +
                   "It must only consist of one dictionary of all relevant" +
                   "parameters.", level=LOG_FATAL)
-        return tuple(None, None, None)
+        return tuple(None, None, None, None)
     # Retrieve configuration parameters
 
     # TODO try the t/e block once things are working smoothly
@@ -333,4 +334,4 @@ def load_MADE(flow_path: str|None=None,
 
         print("-----------------------------------------------------")
 
-    return model, distribution, made_list
+    return model, distribution, made_list, config_dict

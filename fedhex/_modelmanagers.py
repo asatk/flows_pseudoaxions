@@ -4,7 +4,7 @@ import os
 import shutil
 from .io import save_config
 from .train.tf import train
-from .train.tf._MADEflow import compile_MADE_model, eval_MADE
+from .train.tf._MADEflow import compile_MADE_model, eval_MADE, load_MADE
 from .utils import LOG_ERROR, print_msg
 
 from ._managers import ModelManager
@@ -43,6 +43,25 @@ class MADEManager(ModelManager):
             "activation": activation,
             "lr_tuple": lr_tuple
         })
+
+    @classmethod
+    def import_model(cls, path: str):
+
+        model, dist, made_list, cfg = load_MADE(flow_path=path, newmodel=False)
+        mm = MADEManager(nmade=cfg["nmade"],
+                         ninputs=cfg["ninputs"],
+                         ncinputs=cfg["ncinputs"],
+                         hidden_layers=cfg["hidden_layers"],
+                         hidden_units=cfg["hidden_units"],
+                         activation=cfg["activation"],
+                         lr_tuple=cfg["lr_tuple"])
+        
+        mm._model = model
+        mm._dist = dist
+        mm._made_list = made_list
+        mm.is_compiled = True
+
+        return mm
 
     def compile_model(self) -> None:
         """
@@ -102,7 +121,7 @@ class MADEManager(ModelManager):
               callbacks=callbacks)
         self.is_trained = True
         
-    def eval_model(self, cond) -> ndarray:
+    def eval_model(self, cond, seed: int=0x2024) -> ndarray:
 
         if self.is_trained is False:
             print_msg("The model is not trained. Please use the instance " + \
@@ -110,7 +129,7 @@ class MADEManager(ModelManager):
                       "evaluate this model.", level=LOG_ERROR)
             return None
         
-        return eval_MADE(cond, self._made_list, self._dist)
+        return eval_MADE(cond, self._made_list, self._dist, seed=seed)
     
     def export_model(self, path: str) -> bool:
         if not self.is_compiled:
