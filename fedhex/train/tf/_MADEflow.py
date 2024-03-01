@@ -19,8 +19,10 @@ from tensorflow_probability.python import bijectors as tfb
 from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as MAF
 from typing import Any
 import numpy as np
+import numpy.ma as ma
 
 from ...io._path import LOG_WARN, LOG_FATAL, print_msg
+from ...pretrain._data import dewhiten
 
 @tfk.saving.register_keras_serializable(name="Made")
 class MADE(tfb.AutoregressiveNetwork):
@@ -188,14 +190,24 @@ def compile_MADE_model(num_made: int,
     return model, distribution, made_list
 
 
-def eval_MADE(cond, made_list: list, dist: TransformedDistribution, seed: int=0x2024):
+def eval_MADE(cond, ranges, made_list: list, dist: TransformedDistribution, seed: int=0x2024):
     # Generate samples
     current_kwargs = {}
     for i in range(len(made_list) // 2):
         current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
 
-    gen_data = dist.sample(len(cond), seed=seed, bijector_kwargs=current_kwargs)
-    return gen_data
+    #First sample, create masked list
+    gen_data = ma.masked_outside(dist.sample(len(cond), bijector_kwargs=current_kwargs, seed=seed), [r[0] for r in ranges], [r[1] for r in ranges])
+    
+    #While any elements are masked, regenerate kwargs and resample
+    while(gen_data.mask.any()):
+        resample = gen_data.mask.dot(np.ones(len(gen_data.mask[0]),dtype=bool))
+        current_kwargs = {}
+        for i in range(len(made_list) // 2):
+            current_kwargs[f"maf_{i}"] = {"conditional_input" : np.repeat([cond[0]],np.count_nonzero(resample), axis=0)}
+        gen_data[resample] = dist.sample(np.count_nonzero(resample), bijector_kwargs = current_kwargs, seed=seed)
+        gen_data = ma.masked_outside(gen_data, [r[0] for r in ranges], [r[1] for r in ranges])
+    return ma.asarray(gen_data)
 
 @tfk.saving.register_keras_serializable(name="lossfn_MADE")
 def lossfn_MADE(x, logprob):

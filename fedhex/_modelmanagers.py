@@ -121,7 +121,7 @@ class MADEManager(ModelManager):
               callbacks=callbacks)
         self.is_trained = True
         
-    def eval_model(self, cond, seed: int=0x2024) -> ndarray:
+    def eval_model(self, cond, ranges, seed: int=0x2024) -> ndarray:
 
         if self.is_trained is False:
             print_msg("The model is not trained. Please use the instance " + \
@@ -129,7 +129,7 @@ class MADEManager(ModelManager):
                       "evaluate this model.", level=LOG_ERROR)
             return None
         
-        return eval_MADE(cond, self._made_list, self._dist, seed=seed)
+        return eval_MADE(cond, ranges, self._made_list, self._dist, seed=seed)
     
     def export_model(self, path: str) -> bool:
         if not self.is_compiled:

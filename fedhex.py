@@ -3,9 +3,9 @@ from matplotlib import pyplot as plt
 from fedhex.train import Checkpointer, EpochLossHistory, SelectiveProgbarLogger
 import numpy as np
 from fedhex.posttrain import plot as fxp
+import fedhex.io as fxio
 import sys, getopt
 import toml
-import re
 import os
 
 def printHelp():
@@ -38,7 +38,7 @@ def main(argv):
     
     opts, args = getopt.getopt(argv[1:],"t:e:n:l:h",["rootIn=","rootThresh=", "nGen=", "rootOut=","labels=","plotTraining","help","savePlot"])
     
-    if argv[0].endswith(".TOML"):
+    if argv[0].endswith(".TOML") or argv[0].endswith(".toml"):
         configFile = argv[0]
         with open(configFile, "r") as f:
             param = toml.load(f)  
@@ -51,10 +51,24 @@ def main(argv):
         #root loader
         root_path = param["rootIn"]["root_path"]
         thresh = param["rootIn"]["thresh"]
+        tree_name = param["rootIn"]["tree_name"]
+        data_vars = param["rootIn"]["data_vars"]
+        cond_vars = param["rootIn"]["cond_vars"]
+        cutstr = param["rootIn"]["cutstr"]
+        defs = param["rootIn"]["defs"]
         
         #Generating
         ngen = param["generating"]["ngen"]
         gen_labels_unique = param["generating"]["gen_labels_unique"]
+        ranges = param["generating"]["ranges"]
+        for i in ranges:
+            for j in range(len(i)):
+                if i[j] == "inf":
+                    i[j] = np.inf
+                elif i[j] == "-inf":
+                    i[j] = -np.inf
+                else:
+                    i[j] = float(i[j])
         
         #Outputs
         root_out_path = param["outputs"]["root_out_path"]
@@ -100,7 +114,7 @@ def main(argv):
         elif opt == "--rootOut":
             root_out_path = arg
         elif opt in ("--labels","-l"):
-            gen_labels_unique = arg.split(",")
+            gen_labels_unique = [arg.split(",")]
         elif opt == "--plotTraining":
             plotTraining = True
         elif opt == "--savePlot":
@@ -112,16 +126,20 @@ def main(argv):
 
     ############################################################
     
-    
     #load and preprocess root
     rl = fx.RootLoader(path=root_path)
-    samples, labels = rl.load(event_thresh=thresh)
+    samples, labels = rl.load(
+        tree_name=tree_name,
+        data_vars=data_vars,
+        cond_vars=cond_vars,
+        cutstr=cutstr,
+        defs=defs,
+        event_thresh=thresh)
     data, cond = rl.preproc()
     
     #plot training data
     if plotTraining:
         fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
-
         ax1.scatter(samples[:,0], samples[:,1])
         ax1.scatter(labels[:,0], labels[:,1])
         ax1.set_title("Original Data")
@@ -135,7 +153,7 @@ def main(argv):
         ax2.set_ylabel("Normalized Y-coordinate")
         
         if savePlot:
-            if not train_plot_path.endswith(".png") or train_plot_path.endswith(".pdf") or train_plot_path.endswith(".jpg"):
+            if not (train_plot_path.endswith(".png") or train_plot_path.endswith(".pdf") or train_plot_path.endswith(".jpg")):
                 os.system("mkdir -p " + train_plot_path)
                 train_plot_path += "training.png"
             fig.savefig(train_plot_path)
@@ -171,17 +189,17 @@ def main(argv):
         
     if evaluate:
         #Generate data
-        gen_labels = np.repeat([gen_labels_unique], ngen, axis=0)
+        gen_labels = np.repeat(gen_labels_unique, ngen, axis=0)
         gen_cond = rl.norm(gen_labels, is_cond=True)
         
-        gen_data = mm.eval_model(gen_cond)
+        gen_data = mm.eval_model(gen_cond, ranges)  
         gen_samples = rl.denorm(gen_data, is_cond=False)
 
         #Plot data
         fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
 
         ax1.scatter(gen_samples[:,0], gen_samples[:,1])
-        ax1.scatter(gen_labels_unique[0], gen_labels_unique[1])
+        ax1.scatter(gen_labels_unique[0][0], gen_labels_unique[0][1])
         ax1.set_title("Generated Data in Sample Space")
         ax1.set_xlabel(r"$\Phi$ reconstructed mass")
         ax1.set_ylabel(r"$\omega$ reconstructed mass")
@@ -193,12 +211,12 @@ def main(argv):
         ax2.set_ylabel("Normalized Y-coordinate")
         
         if savePlot:
-            if not gen_plot_path.endswith(".png") or gen_plot_path.endswith(".pdf") or gen_plot_path.endswith(".jpg"):
+            if not (gen_plot_path.endswith(".png") or gen_plot_path.endswith(".pdf") or gen_plot_path.endswith(".jpg")):
                 os.system("mkdir -p " + gen_plot_path)
                 gen_plot_path += "generated.png"
             fig.savefig(gen_plot_path)
         
-            if not loss_plot_path.endswith(".png") or loss_plot_path.endswith(".pdf") or loss_plot_path.endswith(".jpg"):
+            if not (loss_plot_path.endswith(".png") or loss_plot_path.endswith(".pdf") or loss_plot_path.endswith(".jpg")):
                 os.system("mkdir -p " + loss_plot_path)
                 loss_plot_path += "loss.png"
             fxp.plot_losses(np.load(loss_path), out_path=loss_plot_path, show=True)
@@ -206,10 +224,15 @@ def main(argv):
             fxp.plot_losses(np.load(loss_path), show=True)
 
         #Save data to root
-        saver = fx.Loader(data_dict={"gen_samples": gen_samples, "gen_labels": gen_labels, "trn_samples": samples, "trn_labels": labels})
         if not root_out_path.lower().endswith(".root"):
             os.system("mkdir -p " + root_out_path)
-        saver.save_to_root(root_out_path, custom=False)
+        fxio.save_root(
+            path=root_out_path,
+            tree_name="tree",
+            gen_samples=gen_samples,
+            gen_labels=gen_labels,
+            trn_samples=samples,
+            trn_labels=labels)
 
 
     

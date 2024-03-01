@@ -6,10 +6,16 @@ plotTraining = true
 [rootIn]
 root_path = "./root/10x10box_10k_jun2023/"
 thresh = 150
+tree_name = "Events"
+data_vars = ["phi", "omega"]
+cond_vars = ["labelphi", "labelomega"]
+cutstr = "CBL_Region == 1 and Photon_pt[CBL_RecoPhi_photonindex] > 220"
+defs = {"phi" = "CBL_RecoPhi_mass", "labelphi" = "GenPhi_mass[0]", "omega" = "TwoProng_massPi0[CBL_RecoPhi_twoprongindex]", "labelomega" = "GenOmega_mass[0]"}
 
 [generating]
 ngen = 500
-gen_labels_unique = [2464.0, 5.125]
+gen_labels_unique = [[2464.0, 5.125]]
+ranges = [[-inf, inf],[0.415, inf]]
 
 [outputs]
 loss_plot_path = "./output/fullscript/plots/loss_plot.png"
@@ -32,7 +38,7 @@ lr_tuple = [1e-3, 1e-4, 100.0]
 starting_epoch = 0
 end_epoch = 200
 batch_size = 1024
-flow_path = "./model/fullscript/"
+flow_path = "./model/Jan18Test/normal"
 
 [callbacks]
 log_freq = 10
