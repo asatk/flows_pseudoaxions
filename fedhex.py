@@ -69,7 +69,7 @@ def main(argv):
                     i[j] = -np.inf
                 else:
                     i[j] = float(i[j])
-        
+
         #Outputs
         root_out_path = param["outputs"]["root_out_path"]
         loss_plot_path = param["outputs"]["loss_plot_path"]
@@ -158,15 +158,14 @@ def main(argv):
                 train_plot_path += "training.png"
             fig.savefig(train_plot_path)
     
-    #compile model
-    mm = fx.MADEManager(nmade=nmade, ninputs=ninputs, ncinputs=ncinputs,
-                        hidden_layers=hidden_layers, hidden_units=hidden_units,
-                        lr_tuple=lr_tuple)
-    mm.compile_model()
-
-    
 
     if train:
+        #compile model
+        mm = fx.MADEManager(nmade=nmade, ninputs=ninputs, ncinputs=ncinputs,
+                            hidden_layers=hidden_layers, hidden_units=hidden_units,
+                            lr_tuple=lr_tuple)
+        mm.compile_model()
+    
         #callbacks
         callbacks = []
         
@@ -180,20 +179,23 @@ def main(argv):
         mm.train_model(data=data, cond=cond, batch_size=batch_size,
                     starting_epoch=starting_epoch, end_epoch=end_epoch,
                     path=flow_path, callbacks=callbacks)
+        
+        #Save model
+        mm.save(flow_path + "/config.json")
     else:
         #Load model
         if not os.path.isdir(flow_path):
             print("flow_path to model does not exist. Provide a path to an existing model to load or train new model.")
             sys.exit()
-        mm.load_MADE(flow_path)
+        mm = fx.MADEManager.import_model(path=flow_path)
         
     if evaluate:
         #Generate data
         gen_labels = np.repeat(gen_labels_unique, ngen, axis=0)
         gen_cond = rl.norm(gen_labels, is_cond=True)
         
-        gen_data = mm.eval_model(gen_cond, ranges)  
-        gen_samples = rl.denorm(gen_data, is_cond=False)
+        test, gen_data = mm.eval_model(gen_cond, rl, ranges=ranges)  
+        gen_samples = gen_data
 
         #Plot data
         fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
@@ -233,6 +235,7 @@ def main(argv):
             gen_labels=gen_labels,
             trn_samples=samples,
             trn_labels=labels)
+        
 
 
     
