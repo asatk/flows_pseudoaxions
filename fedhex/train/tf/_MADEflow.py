@@ -22,7 +22,7 @@ import numpy as np
 import numpy.ma as ma
 
 from ...io._path import LOG_WARN, LOG_FATAL, print_msg
-from ...pretrain._data import dewhiten
+from ..._loaders import DataManager
 
 @tfk.saving.register_keras_serializable(name="Made")
 class MADE(tfb.AutoregressiveNetwork):
@@ -189,24 +189,61 @@ def compile_MADE_model(num_made: int,
 
     return model, distribution, made_list
 
+def maskOutside(arr, *args):
+    ranges = args[0]
+    c = []
+    for i in range(len(arr[0])):
+        c.append((arr[:,i] < ranges[i][0]) + (arr[:,i] > ranges[i][1]))
+    
+    return np.transpose(c)
 
-def eval_MADE(cond, ranges, made_list: list, dist: TransformedDistribution, seed: int=0x2024):
+def eval_MADE(cond, dm: DataManager, made_list: list, dist: TransformedDistribution, criteria = None, ranges = None, seed: int = 0x2024, *args):
     # Generate samples
     current_kwargs = {}
     for i in range(len(made_list) // 2):
         current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
 
-    #First sample, create masked list
-    gen_data = ma.masked_outside(dist.sample(len(cond), bijector_kwargs=current_kwargs, seed=seed), [r[0] for r in ranges], [r[1] for r in ranges])
+    #Batch rejection sampling
     
-    #While any elements are masked, regenerate kwargs and resample
+    #Initial sampling
+    gen_data = ma.array(dm.denorm(dist.sample(len(cond), bijector_kwargs=current_kwargs, seed=seed), is_cond=False), copy=True)
+   
+    #If there is no rejection criteria, return the generated data
+    if criteria is None and ranges is None:
+        return ma.asarray(gen_data)
+    
+    #Format the user-defined ranges
+    if ranges is not None:
+        criteria = maskOutside
+        for r in ranges:
+            if r[0] is None:
+                r[0] = -np.inf
+            if r[1] is None:
+                r[1] = np.inf
+    
+    #Create a masked array and apply the rejection criteria
+    if ranges is None:
+        gen_data[criteria(gen_data, *args)] = ma.masked
+    else:
+        gen_data[criteria(gen_data, ranges)] = ma.masked
+    
+    #While any elements are masked
     while(gen_data.mask.any()):
+        
+        #Find samples that need to be redone and generate corresponding number of kwargs
         resample = gen_data.mask.dot(np.ones(len(gen_data.mask[0]),dtype=bool))
         current_kwargs = {}
         for i in range(len(made_list) // 2):
             current_kwargs[f"maf_{i}"] = {"conditional_input" : np.repeat([cond[0]],np.count_nonzero(resample), axis=0)}
-        gen_data[resample] = dist.sample(np.count_nonzero(resample), bijector_kwargs = current_kwargs, seed=seed)
-        gen_data = ma.masked_outside(gen_data, [r[0] for r in ranges], [r[1] for r in ranges])
+        
+        #update the masked array with the new samples, apply rejection criteria
+        gen_data[resample] = dm.denorm(dist.sample(np.count_nonzero(resample), bijector_kwargs = current_kwargs, seed=seed), is_cond=False)
+        
+        if ranges is None:
+            gen_data[criteria(gen_data, *args)] = ma.masked
+        else:
+            gen_data[criteria(gen_data, ranges)] = ma.masked
+    
     return ma.asarray(gen_data)
 
 @tfk.saving.register_keras_serializable(name="lossfn_MADE")

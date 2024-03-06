@@ -7,7 +7,7 @@ from .train.tf import train
 from .train.tf._MADEflow import compile_MADE_model, eval_MADE, load_MADE
 from .utils import LOG_ERROR, print_msg
 
-from ._managers import ModelManager
+from ._managers import ModelManager, DataManager
 
 
 class MADEManager(ModelManager):
@@ -60,6 +60,7 @@ class MADEManager(ModelManager):
         mm._dist = dist
         mm._made_list = made_list
         mm.is_compiled = True
+        mm.is_trained = True
 
         return mm
 
@@ -121,7 +122,7 @@ class MADEManager(ModelManager):
               callbacks=callbacks)
         self.is_trained = True
         
-    def eval_model(self, cond, ranges, seed: int=0x2024) -> ndarray:
+    def eval_model(self, cond, dm: DataManager, criteria = None, ranges=None, seed: int=0x2024, *args) -> ndarray:
 
         if self.is_trained is False:
             print_msg("The model is not trained. Please use the instance " + \
@@ -129,7 +130,7 @@ class MADEManager(ModelManager):
                       "evaluate this model.", level=LOG_ERROR)
             return None
         
-        return eval_MADE(cond, ranges, self._made_list, self._dist, seed=seed)
+        return eval_MADE(cond, dm, self._made_list, self._dist, criteria, ranges, seed=seed, *args)
     
     def export_model(self, path: str) -> bool:
         if not self.is_compiled:
