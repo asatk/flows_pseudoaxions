@@ -1,6 +1,6 @@
 """
-Author: Anthony Atkinson
-Modified: 2023.07.14
+Author: Anthony Atkinson and Darshan Lakshminarayanan
+Modified: 2024.03.05
 
 Contains the core flow model necessities. Building a flow, compiling one from
 scratch, the loss function, retrieving the intermediate flows, and the MADE
@@ -9,6 +9,7 @@ block itself.
 It will likely contain other types of blocks/flows, in which case PyTorch is
 more favorable due to its exposed interface and customizability.
 """
+
 import json
 import os
 import tensorflow as tf
@@ -17,7 +18,7 @@ from tensorflow_probability.python import distributions as tfd
 from tensorflow_probability.python.distributions import TransformedDistribution
 from tensorflow_probability.python import bijectors as tfb
 from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as MAF
-from typing import Any
+from typing import Any, Callable
 import numpy as np
 import numpy.ma as ma
 
@@ -197,16 +198,27 @@ def maskOutside(arr, *args):
     
     return np.transpose(c)
 
-def eval_MADE(cond, dm: DataManager, made_list: list, dist: TransformedDistribution, criteria = None, ranges = None, seed: int = 0x2024, *args):
+def eval_MADE(cond,
+              dm: DataManager,
+              made_list: list,
+              dist: TransformedDistribution,
+              criteria: Callable=None,
+              ranges: tuple=None,
+              seed: int = 0x2024,
+              *args):
+    
+    cond_norm = dm.norm(samples=cond, is_cond=True)
+
     # Generate samples
     current_kwargs = {}
     for i in range(len(made_list) // 2):
-        current_kwargs[f"maf_{i}"] = {"conditional_input" : cond}
+        current_kwargs[f"maf_{i}"] = {"conditional_input" : cond_norm}
 
     #Batch rejection sampling
     
     #Initial sampling
-    gen_data = ma.array(dm.denorm(dist.sample(len(cond), bijector_kwargs=current_kwargs, seed=seed), is_cond=False), copy=True)
+    gen_data_norm = dist.sample(len(cond_norm), bijector_kwargs=current_kwargs, seed=seed)
+    gen_data = ma.array(dm.denorm(gen_data_norm, is_cond=False), copy=True)
    
     #If there is no rejection criteria, return the generated data
     if criteria is None and ranges is None:
@@ -234,10 +246,12 @@ def eval_MADE(cond, dm: DataManager, made_list: list, dist: TransformedDistribut
         resample = gen_data.mask.dot(np.ones(len(gen_data.mask[0]),dtype=bool))
         current_kwargs = {}
         for i in range(len(made_list) // 2):
-            current_kwargs[f"maf_{i}"] = {"conditional_input" : np.repeat([cond[0]],np.count_nonzero(resample), axis=0)}
+            cond_norm_temp = np.repeat([cond_norm[0]],np.count_nonzero(resample), axis=0)
+            current_kwargs[f"maf_{i}"] = {"conditional_input" : cond_norm_temp}
         
         #update the masked array with the new samples, apply rejection criteria
-        gen_data[resample] = dm.denorm(dist.sample(np.count_nonzero(resample), bijector_kwargs = current_kwargs, seed=seed), is_cond=False)
+        gen_resample_norm = dist.sample(np.count_nonzero(resample), bijector_kwargs=current_kwargs, seed=seed)
+        gen_data[resample] = dm.denorm(gen_resample_norm, is_cond=False)
         
         if ranges is None:
             gen_data[criteria(gen_data, *args)] = ma.masked
