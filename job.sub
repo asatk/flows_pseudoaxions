@@ -1,0 +1,15 @@
+executable		= /cms/twoprong/asa178/rootflows/bin/python
+arguments		= "script.py /cms/chiarito/public/for_anthony/100x100box_200events/"
+
+log			= job.log
+output			= job.out
+error			= job.err
+
+should_transfer_files 	= Yes
+when_to_transfer_output	= ON_EXIT
+
+request_cpus		= 2
+request_memory		= 512M
+request_disk		= 1G
+
+queue

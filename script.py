@@ -2,12 +2,13 @@ import fedhex as fx
 from fedhex.train import Checkpointer, EpochLossHistory, SelectiveProgbarLogger
 from matplotlib import pyplot as plt
 import numpy as np
+import os
 import sys
 
 def plot_data(samples, labels):
     plt.scatter(samples[:,0], samples[:,1])
     plt.scatter(labels[:,0], labels[:,1])
-    plt.savefig("data-scatter.png")
+    plt.savefig("output/data-scatter.png")
 
 def plot_gen_grouped(gen_samples_grouped, gen_labels_unique):
     fig, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2,4, figsize=(12,8), sharex=True, sharey=True)
@@ -61,12 +62,18 @@ def plot_gen_grouped(gen_samples_grouped, gen_labels_unique):
     fig.supylabel("Reco Omega Mass")
     fig.tight_layout()
 
-    plt.savefig("gen-scatter-panels.png")
+    plt.savefig("output/gen-scatter-panels.png")
 
 if __name__ == "__main__":
-    data_path = sys.argv[1]
 
-    path = "./root/100x100box_200events"
+    if not os.path.isdir("./output/"):
+        os.mkdir("./output/")
+    if not os.path.isdir("./model/"):
+        os.mkdir("./model/")
+    
+    path = sys.argv[1]
+    print("Path: ", path)
+#    path = "./root/100x100box_200events"
     tree_name = "Events"
     data_vars = ["phi", "omega"]
     cond_vars = ["labelphi", "labelomega"]
@@ -106,8 +113,8 @@ if __name__ == "__main__":
 
 
     batch_size = int(np.power(2, np.floor(np.log2(len(data) >> 5))))
-    model_path = "./model/03-06-flows-reject2"
-    loss_path = model_path + "loss.npy"
+    model_path = "./model/2024-04-04-job/"
+    loss_path = model_path + "/loss.npy"
     starting_epoch = 0
     end_epoch = 200
 
@@ -132,7 +139,7 @@ if __name__ == "__main__":
             callbacks=callbacks)
     config_path = model_path + "/config.json"
     mm.save(config_path=config_path)
-    mm = fx.MADEManager.import_model(path="./model/2024-04-04-job")
+    mm = fx.MADEManager.import_model(path="./model/2024-04-04-job/")
 
 
 
