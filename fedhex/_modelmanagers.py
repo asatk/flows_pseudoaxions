@@ -113,9 +113,10 @@ class MADEManager(ModelManager):
             "model_path": path
         })
 
-        if os.path.isdir(path):
-            shutil.rmtree(path)
-        os.mkdir(path)
+        if path is not None:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            os.mkdir(path)
         
         train(self._model, data, cond, end_epoch=end_epoch, batch_size=batch_size,
               starting_epoch=starting_epoch, flow_path=path,

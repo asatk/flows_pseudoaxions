@@ -29,11 +29,21 @@ class CovModStrategy(metaclass=abc.ABCMeta):
 
 
 class DiagCov(CovStrategy):
-    def __init__(self, ndim: int, sigma: float):
+    def __init__(self, ndim: int, sigma: float|np.ndarray):
         self.cov = self.__create(ndim=ndim, sigma=sigma)
 
     def __create(self, ndim, sigma) -> ndarray:
-        return sigma**2 * np.eye(ndim)
+        cov = np.zeros((ndim, ndim))
+        d = np.diag_indices(ndim)
+        if isinstance(sigma, float):
+            sigma = sigma * np.ones(ndim)
+        elif isinstance(sigma, np.ndarray) and sigma.shape[0] != ndim:
+            return None
+        elif not isinstance(sigma, np.ndarray):
+            return None
+            
+        cov[d] = np.square(sigma)
+        return cov
 
     def create(self) -> ndarray:
         return self.cov
