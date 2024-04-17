@@ -1,4 +1,4 @@
-from numpy import ndarray
+from numpy import ndarray, ceil, log2
 
 import os
 import shutil
@@ -81,15 +81,18 @@ class MADEManager(ModelManager):
         self.is_compiled = True
 
     def train_model(self,
-                    data: ndarray,
-                    cond: ndarray,
-                    batch_size: int,
+                    dm: DataManager=None,
+                    data: ndarray=None,
+                    cond: ndarray=None,
+                    batch_size: int=None,
                     starting_epoch: int=0,
                     end_epoch: int=1, 
                     path: str|None=None,
                     callbacks: list=None) -> None:
         """
         Train the model once built.
+
+        dm preferred over data/cond
         """
 
         if self.is_compiled is False:
@@ -98,7 +101,19 @@ class MADEManager(ModelManager):
                       "train this model.", level=LOG_ERROR)
             return
 
-        if callbacks == None:
+        if dm is not None:
+            data, cond = dm.preproc()
+        elif data is None or cond is None:
+            print_msg("The model cannot be trained without data and " + \
+                      "conditional data or just a DataManager. Please provide"+\
+                      "either of these.")
+
+        if batch_size is None:
+            batch_size = int(1 << ceil(log2(len(data) >> 5)))
+            print_msg("Note: no batch_size provided; batch_size set to " + \
+                      f"{batch_size}")
+
+        if callbacks is None:
             callbacks = []
 
         self._end_epoch = end_epoch
