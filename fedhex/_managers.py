@@ -1,9 +1,9 @@
 import abc
-from numpy import ndarray
 from typing import Self
 
+from numpy import ndarray
+
 from .constants import WHITEN_EPSILON
-from .io import save_config
 from .pretrain import dewhiten, whiten
 from .utils import LOG_ERROR, print_msg
 
@@ -156,6 +156,3 @@ class ModelManager(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def export_model(self, path: str) -> bool:
         ...
-
-    def save(self, config_path: str) -> bool:
-        return save_config(config_path, self.state_dict)

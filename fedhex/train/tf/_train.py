@@ -10,12 +10,17 @@ import numpy as np
 from tensorflow.python.keras.models import Model
 from tensorflow.python.keras.callbacks import Callback
 
-from ...io._path import print_msg
+from ...io._path import print_msg, LOG_FATAL
 
 
 # possibly place this in init or not
-def train(model: Model, data: np.ndarray, cond: np.ndarray, batch_size: int,
-          starting_epoch: int=0, end_epoch: int=1, flow_path: str|None=None,
+def train(model: Model,
+          data: np.ndarray,
+          cond: np.ndarray,
+          batch_size: int,
+          starting_epoch: int=0,
+          end_epoch: int=1,
+          flow_path: str|None=None,
           callbacks: list[Callback]=None) -> None:
     
 
@@ -38,19 +43,21 @@ def train(model: Model, data: np.ndarray, cond: np.ndarray, batch_size: int,
         data will be lost once the process exits.
     """
 
-    assert data.shape[0] == cond.shape[0]
+    if data.shape[0] != cond.shape[0]:
+        print_msg("Data and Conditional Data are not the same lengths: " + \
+                  f"{data.shape[0]} and {cond.shape[0]}.", level=LOG_FATAL)
 
     tstart = print_msg("[Training begins]")
     
     # Run the training procedure with all data and configuration options
     model.fit(x=[data, cond],
-            y=np.zeros((data.shape[0], 0), dtype=np.float32),
-            shuffle=True,
-            batch_size=batch_size,
-            epochs=end_epoch,
-            verbose=0,
-            initial_epoch=starting_epoch,
-            callbacks=callbacks)
+              y=np.zeros((data.shape[0], 0), dtype=np.float32),
+              shuffle=True,
+              batch_size=batch_size,
+              epochs=end_epoch,
+              verbose=0,
+              initial_epoch=starting_epoch,
+              callbacks=callbacks)
 
     if flow_path is not None:
         model.save(flow_path)

@@ -1,21 +1,22 @@
 """
 Author: Anthony Atkinson
-Modified: 2023.08.24
+Modified: 2023.06.07
 
-Tensorflow models.
+Tensorflow flow models.
 """
 
 
-from ._MADEflow import build_MADE, compile_MADE_model, intermediate_MADE, load_MADE, lossfn_MADE, MADE
+from ._MADEflow import build_MADE, compile_MADE, intermediate_MADE, load_MADE, loss_MADE, MADE
+# from ._RNVPflow import 
 from ._train import train
 
 
 __all__ = [
     "build_MADE",
-    "compile_MADE_model",
+    "compile_MADE",
     "intermediate_MADE",
     "load_MADE",
-    "lossfn_MADE",
+    "loss_MADE",
     "MADE",
     "train"
 ]

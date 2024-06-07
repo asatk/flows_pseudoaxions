@@ -5,8 +5,7 @@ Classes that load data.
 from numpy import ndarray, save
 from typing import Self
 
-from .io import find_root, load_config, load_data_dict, load_numpy, load_root, \
-    save_root
+from .io import find_root, load_data_dict, load_numpy, load_root, save_root
 from .utils import LOG_ERROR, print_msg
 
 from ._managers import DataManager
@@ -14,27 +13,27 @@ from ._managers import DataManager
 
 class Loader(DataManager):
 
-    @classmethod
-    def import_cfg(cls: Self, config_path: str) -> Self:
+    # @classmethod
+    # def import_cfg(cls: Self, config_path: str) -> Self:
         
-        state_dict = load_config(config_path)
+    #     state_dict = load_config(config_path)
 
-        kw_list = [
-            "path"
-        ]
+    #     kw_list = [
+    #         "path"
+    #     ]
 
-        missing_kws = set(kw_list) - set(state_dict)
-        if missing_kws != set():
-            print_msg(f"Loaded config at `{config_path}` does not contain " + \
-                      "the necessary kws for this `Loader:\n" + \
-                      f"{missing_kws}", level=LOG_ERROR)
-            return None
+    #     missing_kws = set(kw_list) - set(state_dict)
+    #     if missing_kws != set():
+    #         print_msg(f"Loaded config at `{config_path}` does not contain " + \
+    #                   "the necessary kws for this `Loader:\n" + \
+    #                   f"{missing_kws}", level=LOG_ERROR)
+    #         return None
         
-        path = state_dict.get("path")
-        obj = Loader(path=path, data_dict=None)
-        obj._set_state(state=state_dict)
+    #     path = state_dict.get("path")
+    #     obj = Loader(path=path, data_dict=None)
+    #     obj._set_state(state=state_dict)
 
-        return obj
+    #     return obj
     
     def _set_state(self, state: dict) -> None:
         if "path" in state:
@@ -138,36 +137,36 @@ class NumpyLoader(Loader):
 
 class RootLoader(Loader):
 
-    @classmethod
-    def import_cfg(cls: Self, config_path: str) -> Self:
+    # @classmethod
+    # def import_cfg(cls: Self, config_path: str) -> Self:
         
-        state_dict = load_config(config_path)
+    #     state_dict = load_config(config_path)
 
-        kw_list = [
-            "path",
-            "thresh",
-            "max_depth",
-            "event_selection_function",
-            "cutstr",
-            "exps",
-            "file_list"
-        ]
+    #     kw_list = [
+    #         "path",
+    #         "thresh",
+    #         "max_depth",
+    #         "event_selection_function",
+    #         "cutstr",
+    #         "exps",
+    #         "file_list"
+    #     ]
 
-        missing_kws = set(kw_list) - set(state_dict)
-        if missing_kws != set():
-            print_msg(f"Loaded config at `{config_path}` does not contain " + \
-                      "the necessary kws for this `RootLoader:\n" + \
-                      f"{missing_kws}", level=LOG_ERROR)
-            return None
+    #     missing_kws = set(kw_list) - set(state_dict)
+    #     if missing_kws != set():
+    #         print_msg(f"Loaded config at `{config_path}` does not contain " + \
+    #                   "the necessary kws for this `RootLoader:\n" + \
+    #                   f"{missing_kws}", level=LOG_ERROR)
+    #         return None
         
-        path = state_dict.get("path")
-        obj = RootLoader(path=path, data_dict=None)
-        obj._set_state(state=state_dict)
+    #     path = state_dict.get("path")
+    #     obj = RootLoader(path=path, data_dict=None)
+    #     obj._set_state(state=state_dict)
 
-        # self.state_dict = state_dict
-        # self._path = state_dict.get("path")
+    #     # self.state_dict = state_dict
+    #     # self._path = state_dict.get("path")
 
-        return obj
+    #     return obj
 
 
     def __init__(self, path: str, data_dict: dict=None):

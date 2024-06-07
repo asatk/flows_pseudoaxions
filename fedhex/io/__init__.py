@@ -8,7 +8,7 @@ Provides all necessary I/O functions
 
 from ._data import load_data_dict, save_data_dict, threshold_data
 from ._numpy import load_numpy
-from ._path import init_service, load_config, save_config
+from ._path import init_service
 from ._root import find_root, load_root, save_root
 
 
@@ -18,8 +18,6 @@ __all__ = [
     "threshold_data",
     "load_numpy",
     "init_service",
-    "load_config",
-    "save_config",
     "find_root",
     "load_root",
     "save_root",

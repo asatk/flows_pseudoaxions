@@ -1,13 +1,14 @@
-from numpy import ndarray, ceil, log2
-
 import os
 import shutil
-from .io import save_config
-from .train.tf import train
-from .train.tf._MADEflow import compile_MADE_model, eval_MADE, load_MADE
-from .utils import LOG_ERROR, print_msg
+from typing import Callable
 
-from ._managers import ModelManager, DataManager
+from numpy import ceil, log2, ndarray
+from tensorflow.python.keras.optimizers import Optimizer
+
+from ._managers import DataManager, ModelManager
+from .train.tf import train
+from .train.tf._MADEflow import compile_MADE, eval_MADE, load_MADE
+from .utils import LOG_ERROR, print_msg
 
 
 class MADEManager(ModelManager):
@@ -19,62 +20,58 @@ class MADEManager(ModelManager):
                  nmade: int,
                  ninputs: int,
                  ncinputs: int,
-                 hidden_layers: int|list=1,
-                 hidden_units: int=128,
-                 activation: str="relu",
-                 lr_tuple: tuple[int]=(1e-3, 1e-4, 100)) -> None:
+                 hidden_units: list[int],
+                 activation: str="relu"
+                 ) -> None:
         
         super().__init__()
 
         self._nmade = nmade
         self._ninputs = ninputs
         self._ncinputs = ncinputs
-        self._hidden_layers = hidden_layers
         self._hidden_units = hidden_units
         self._activation = activation
-        self._lr_tuple = lr_tuple
 
         self.state_dict.update({
             "nmade": nmade,
             "ninputs": ninputs,
             "ncinputs": ncinputs,
-            "hidden_layers": hidden_layers,
             "hidden_units": hidden_units,
-            "activation": activation,
-            "lr_tuple": lr_tuple
+            "activation": activation
         })
 
     @classmethod
     def import_model(cls, path: str):
 
-        model, dist, made_list, cfg = load_MADE(flow_path=path, newmodel=False)
+        model, dist, made_list, cfg = load_MADE(flow_path=path)
         mm = MADEManager(nmade=cfg["nmade"],
                          ninputs=cfg["ninputs"],
                          ncinputs=cfg["ncinputs"],
-                         hidden_layers=cfg["hidden_layers"],
                          hidden_units=cfg["hidden_units"],
-                         activation=cfg["activation"],
-                         lr_tuple=cfg["lr_tuple"])
+                         activation=cfg["activation"])
         
         mm._model = model
         mm._dist = dist
         mm._made_list = made_list
+        mm._opt = model.optimizer
         mm.is_compiled = True
         mm.is_trained = True
 
         return mm
 
-    def compile_model(self) -> None:
+    def compile_model(self, opt, loss) -> None:
         """
         Compile a model with all of the necessary parameters. This Manager will
         keep references to instances of tf.Model, tfd.TransformedDistribution,
         and a list of MADE blocks, all used internally.
         """
-        model, dist, made_list = compile_MADE_model(num_made=self._nmade,
+        model, dist, made_list = compile_MADE(num_made=self._nmade,
             num_inputs=self._ninputs, num_cond_inputs=self._ncinputs,
-            hidden_layers=self._hidden_layers, hidden_units=self._hidden_units,
-            activation=self._activation, lr_tuple=self._lr_tuple)
+            hidden_units=self._hidden_units, activation=self._activation,
+            loss=loss, opt=opt)
         
+        self._opt = opt
+        self._loss = loss
         self._model = model
         self._dist = dist
         self._made_list = made_list
@@ -133,12 +130,23 @@ class MADEManager(ModelManager):
                 shutil.rmtree(path)
             os.mkdir(path)
         
-        train(self._model, data, cond, end_epoch=end_epoch, batch_size=batch_size,
-              starting_epoch=starting_epoch, flow_path=path,
+        train(self._model,
+              data,
+              cond,
+              end_epoch=end_epoch,
+              batch_size=batch_size,
+              starting_epoch=starting_epoch,
+              flow_path=path,
               callbacks=callbacks)
         self.is_trained = True
         
-    def eval_model(self, cond, dm: DataManager, criteria = None, ranges=None, seed: int=0x2024, *args) -> ndarray:
+    def eval_model(self,
+                   cond: ndarray,
+                   dm: DataManager=None,
+                   criteria: Callable=None,
+                   ranges: list[list[float]]=None,
+                   seed: int=0x2024,
+                   *args) -> ndarray:
 
         if self.is_trained is False:
             print_msg("The model is not trained. Please use the instance " + \
@@ -146,7 +154,14 @@ class MADEManager(ModelManager):
                       "evaluate this model.", level=LOG_ERROR)
             return None
         
-        return eval_MADE(cond, dm, self._made_list, self._dist, criteria, ranges, seed=seed, *args)
+        return eval_MADE(cond,
+                         self._made_list,
+                         self._dist,
+                         dm=dm,
+                         criteria=criteria,
+                         ranges=ranges,
+                         seed=seed,
+                         *args)
     
     def export_model(self, path: str) -> bool:
         if not self.is_compiled:
