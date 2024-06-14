@@ -102,9 +102,9 @@ if __name__ == "__main__":
     ncinputs = 2
     hidden_layers = [128]
     lr_tuple = (1e-3, 1e-4, 100)
-    mm = fx.MADEManager(nmade=nmade,
-                ninputs=ninputs,
-                ncinputs=ncinputs,
+    mm = fx.MADEManager(num_flows=nmade,
+                len_event=ninputs,
+                len_cond_event=ncinputs,
                 hidden_layers=hidden_layers,
                 activation="relu",
                 lr_tuple=lr_tuple)
@@ -133,8 +133,8 @@ if __name__ == "__main__":
     mm.train_model(data=data,
             cond=cond,
             batch_size=batch_size,
-            starting_epoch=starting_epoch,
-            end_epoch=end_epoch,
+            initial_epoch=starting_epoch,
+            epochs=end_epoch,
             path=model_path,
             callbacks=callbacks)
     config_path = model_path + "/config.json"

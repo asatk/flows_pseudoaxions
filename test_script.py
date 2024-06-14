@@ -57,7 +57,7 @@ def make_model(id: str, end_epoch: int, batch_size: int):
     hidden_layers = 1
     hidden_units = 128
     lr_tuple = (1e-3, 1e-4, 100)
-    mm = fx.MADEManager(nmade=nmade, ninputs=ninputs, ncinputs=ncinputs,
+    mm = fx.MADEManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
                         hidden_layers=hidden_layers, hidden_units=hidden_units,
                         lr_tuple=lr_tuple)
     
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         mm, callbacks, flow_path = make_model(id=str(i), end_epoch=end_epoch, batch_size=batch_size)
 
         mm.train_model(data=data, cond=cond, batch_size=batch_size,
-               starting_epoch=starting_epoch, end_epoch=end_epoch,
+               initial_epoch=starting_epoch, epochs=end_epoch,
                path=flow_path, callbacks=callbacks)
         
         for test_label in test_labels:

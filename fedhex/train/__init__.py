@@ -10,5 +10,5 @@ __all__ = [
     "Checkpointer",
     "EpochLossHistory",
     "LossHistory",
-    "SelectiveProgbarLogger"
+    "SelectiveProgbarLogger",
 ]

@@ -3,11 +3,13 @@ import shutil
 from typing import Callable
 
 from numpy import ceil, log2, ndarray
-from tensorflow.python.keras.optimizers import Optimizer
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow_probability.python.distributions import Distribution
 
 from ._managers import DataManager, ModelManager
-from .train.tf import train
-from .train.tf._MADEflow import compile_MADE, eval_MADE, load_MADE
+from .train.tf import train, NLL
+from .train.tf._MAF import compile_MAF, eval_MAF, load_MAF
 from .utils import LOG_ERROR, print_msg
 
 
@@ -17,36 +19,48 @@ class MADEManager(ModelManager):
     this class.
     """
     def __init__(self,
-                 nmade: int,
-                 ninputs: int,
-                 ncinputs: int,
+                 num_flows: int,
+                 len_event: int,
+                 len_cond_event: int,
                  hidden_units: list[int],
                  activation: str="relu"
                  ) -> None:
+        """Create a manager for a Masked Autoregressive Flow/chain of MADE
+        bijections.
+
+        Args:
+            num_flows (int): _description_
+            len_event (int): _description_
+            len_cond_event (int): _description_
+            hidden_units (list[int]): _description_
+            activation (str, optional): _description_. Defaults to "relu".
+        """        
         
         super().__init__()
 
-        self._nmade = nmade
-        self._ninputs = ninputs
-        self._ncinputs = ncinputs
+        self._num_flows = num_flows
+        self._len_event = len_event
+        self._len_cond_event = len_cond_event
         self._hidden_units = hidden_units
         self._activation = activation
 
         self.state_dict.update({
-            "nmade": nmade,
-            "ninputs": ninputs,
-            "ncinputs": ncinputs,
+            "num_flows": num_flows,
+            "len_event": len_event,
+            "len_cond_event": len_cond_event,
             "hidden_units": hidden_units,
             "activation": activation
         })
 
     @classmethod
-    def import_model(cls, path: str):
+    def import_model(cls,
+                     path: str,
+                     loss: Callable|keras.losses.Loss=NLL):
 
-        model, dist, made_list, cfg = load_MADE(flow_path=path)
-        mm = MADEManager(nmade=cfg["nmade"],
-                         ninputs=cfg["ninputs"],
-                         ncinputs=cfg["ncinputs"],
+        model, dist, made_list, cfg = load_MAF(flow_path=path, loss=loss)
+        mm = MADEManager(num_flows=cfg["num_flows"],
+                         len_event=cfg["len_event"],
+                         len_cond_event=cfg["len_cond_event"],
                          hidden_units=cfg["hidden_units"],
                          activation=cfg["activation"])
         
@@ -59,17 +73,26 @@ class MADEManager(ModelManager):
 
         return mm
 
-    def compile_model(self, opt, loss) -> None:
+    def compile_model(self,
+                      prior: Distribution=None,
+                      opt: keras.optimizers.Optimizer=None,
+                      loss: Callable[[float, float], float]|tf.losses.Loss=None) -> None:
         """
         Compile a model with all of the necessary parameters. This Manager will
         keep references to instances of tf.Model, tfd.TransformedDistribution,
         and a list of MADE blocks, all used internally.
         """
-        model, dist, made_list = compile_MADE(num_made=self._nmade,
-            num_inputs=self._ninputs, num_cond_inputs=self._ncinputs,
-            hidden_units=self._hidden_units, activation=self._activation,
-            loss=loss, opt=opt)
+        model, dist, made_list = compile_MAF(
+            num_flows=self._num_flows,
+            len_event=self._len_event,
+            len_cond_event=self._len_cond_event,
+            hidden_units=self._hidden_units,
+            activation=self._activation,
+            prior=prior,
+            optimizer=opt,
+            loss=loss)
         
+        self._prior = prior
         self._opt = opt
         self._loss = loss
         self._model = model
@@ -82,8 +105,8 @@ class MADEManager(ModelManager):
                     data: ndarray=None,
                     cond: ndarray=None,
                     batch_size: int=None,
-                    starting_epoch: int=0,
-                    end_epoch: int=1, 
+                    initial_epoch: int=0,
+                    epochs: int=1, 
                     path: str|None=None,
                     callbacks: list=None) -> None:
         """
@@ -113,15 +136,15 @@ class MADEManager(ModelManager):
         if callbacks is None:
             callbacks = []
 
-        self._end_epoch = end_epoch
+        self._end_epoch = epochs
         self._batch_size = batch_size
-        self._starting_epoch = starting_epoch
+        self._starting_epoch = initial_epoch
         self._model_path = path
 
         self.state_dict.update({
-            "end_epoch": end_epoch,
+            "end_epoch": epochs,
             "batch_size": batch_size,
-            "starting_epoch": starting_epoch,
+            "starting_epoch": initial_epoch,
             "model_path": path
         })
 
@@ -133,9 +156,9 @@ class MADEManager(ModelManager):
         train(self._model,
               data,
               cond,
-              end_epoch=end_epoch,
+              epochs=epochs,
               batch_size=batch_size,
-              starting_epoch=starting_epoch,
+              initial_epoch=initial_epoch,
               flow_path=path,
               callbacks=callbacks)
         self.is_trained = True
@@ -154,7 +177,7 @@ class MADEManager(ModelManager):
                       "evaluate this model.", level=LOG_ERROR)
             return None
         
-        return eval_MADE(cond,
+        return eval_MAF(cond,
                          self._made_list,
                          self._dist,
                          dm=dm,
@@ -163,6 +186,7 @@ class MADEManager(ModelManager):
                          seed=seed,
                          *args)
     
+    # TODO save only the param layers (MADE) and nothing else
     def export_model(self, path: str) -> bool:
         if not self.is_compiled:
             print_msg("This model is not compiled. Please use the instance" + \

@@ -11,7 +11,7 @@ import os
 # from scipy.stats import chisquare, kstest
 from typing import Any
 
-from ..train.tf import _MADEflow
+from ..train.tf import _MAF
 from ..utils import LOG_ERROR, LOG_FATAL, print_msg
 from .plot import hist_one, plot_all, plot_losses, plot_one, \
     make_genplot_kwargs, make_trnplot_kwargs
@@ -180,7 +180,7 @@ def analyze(distribution: Any, made_list: list[Any], training_data_path: str,
     ### TOOL 2 - Plot Intermediate Output (assess each bijector's contribution)
     if 2 in tools:
         # Generate samples for each intermediate flow
-        flow_distributions = _MADEflow.intermediate_flows_chain(made_list)
+        flow_distributions = _MAF.intermediate_flows_chain(made_list)
         for i, dist in enumerate(flow_distributions):
             gen_data_flow_i = dist.sample((gen_cond.shape[0], ), bijector_kwargs=current_kwargs)
             gen_samples_flow_i = loader.recover_new(gen_data_flow_i, is_cond=False)

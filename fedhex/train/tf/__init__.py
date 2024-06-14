@@ -6,17 +6,18 @@ Tensorflow flow models.
 """
 
 
-from ._MADEflow import build_MADE, compile_MADE, intermediate_MADE, load_MADE, loss_MADE, MADE
+from ._MAF import build_MAF, compile_MAF, intermediate_MAF, load_MAF, MADE
 # from ._RNVPflow import 
 from ._train import train
+from ._loss import NLL
 
 
 __all__ = [
-    "build_MADE",
-    "compile_MADE",
-    "intermediate_MADE",
-    "load_MADE",
-    "loss_MADE",
+    "build_MAF",
+    "compile_MAF",
+    "intermediate_MAF",
+    "load_MAF",
     "MADE",
-    "train"
+    "train",
+    "NLL"
 ]

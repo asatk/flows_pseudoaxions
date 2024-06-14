@@ -161,7 +161,7 @@ def main(argv):
 
     if train:
         #compile model
-        mm = fx.MADEManager(nmade=nmade, ninputs=ninputs, ncinputs=ncinputs,
+        mm = fx.MADEManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
                             hidden_layers=hidden_layers, hidden_units=hidden_units,
                             lr_tuple=lr_tuple)
         mm.compile_model()
@@ -177,7 +177,7 @@ def main(argv):
         callbacks.append(SelectiveProgbarLogger(1, epoch_interval=log_freq, epoch_end=end_epoch))
         #Train model
         mm.train_model(data=data, cond=cond, batch_size=batch_size,
-                    starting_epoch=starting_epoch, end_epoch=end_epoch,
+                    initial_epoch=starting_epoch, epochs=end_epoch,
                     path=flow_path, callbacks=callbacks)
         
         #Save model
