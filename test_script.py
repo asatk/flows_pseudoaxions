@@ -57,7 +57,7 @@ def make_model(id: str, end_epoch: int, batch_size: int):
     hidden_layers = 1
     hidden_units = 128
     lr_tuple = (1e-3, 1e-4, 100)
-    mm = fx.MADEManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
+    mm = fx.MAFManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
                         hidden_layers=hidden_layers, hidden_units=hidden_units,
                         lr_tuple=lr_tuple)
     

@@ -231,7 +231,7 @@ def compile_MAF(num_flows: int,
 
     # Define optimizer/learning rate function
     if optimizer is None or not isinstance(optimizer, keras.optimizers.Optimizer):
-        print_msg("Using default optimizer and learning rate schedule: Adam" \
+        print_msg("Using default optimizer and learning rate schedule: Adam " \
                   "with learning rate=1e-3")
         optimizer = keras.optimizers.Adam()
 

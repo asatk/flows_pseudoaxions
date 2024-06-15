@@ -102,7 +102,7 @@ if __name__ == "__main__":
     ncinputs = 2
     hidden_layers = [128]
     lr_tuple = (1e-3, 1e-4, 100)
-    mm = fx.MADEManager(num_flows=nmade,
+    mm = fx.MAFManager(num_flows=nmade,
                 len_event=ninputs,
                 len_cond_event=ncinputs,
                 hidden_layers=hidden_layers,
@@ -139,7 +139,7 @@ if __name__ == "__main__":
             callbacks=callbacks)
     config_path = model_path + "/config.json"
     mm.save(config_path=config_path)
-    mm = fx.MADEManager.import_model(path="./model/2024-04-04-job/")
+    mm = fx.MAFManager.import_model(path="./model/2024-04-04-job/")
 
 
 

@@ -33,7 +33,7 @@ def f(x, logprob):
 loss = None     # Default loss fn
 # loss = NLL()  # import/create keras.losses.Loss class
 # loss = f      # create function
-mm = fx.MADEManager.import_model(flow_path, loss=loss)
+mm = fx.MAFManager.import_model(flow_path, loss=loss)
 
 epochs = int(2 * epochs)
 callbacks = []

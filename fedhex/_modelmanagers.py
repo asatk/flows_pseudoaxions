@@ -13,10 +13,10 @@ from .train.tf._MAF import compile_MAF, eval_MAF, load_MAF
 from .utils import LOG_ERROR, print_msg
 
 
-class MADEManager(ModelManager):
+class MAFManager(ModelManager):
     """
-    The details of building and training a model are self-contained within
-    this class.
+    A Tensorflow-based Masked Autoregressive Flow model can be built, compiled,
+    trained, evaluated, and exported using this ModelManager.
     """
     def __init__(self,
                  num_flows: int,
@@ -52,13 +52,14 @@ class MADEManager(ModelManager):
             "activation": activation
         })
 
+
     @classmethod
     def import_model(cls,
                      path: str,
                      loss: Callable|keras.losses.Loss=NLL):
 
         model, dist, made_list, cfg = load_MAF(flow_path=path, loss=loss)
-        mm = MADEManager(num_flows=cfg["num_flows"],
+        mm = MAFManager(num_flows=cfg["num_flows"],
                          len_event=cfg["len_event"],
                          len_cond_event=cfg["len_cond_event"],
                          hidden_units=cfg["hidden_units"],
@@ -73,9 +74,10 @@ class MADEManager(ModelManager):
 
         return mm
 
+
     def compile_model(self,
                       prior: Distribution=None,
-                      opt: keras.optimizers.Optimizer=None,
+                      optimizer: keras.optimizers.Optimizer=None,
                       loss: Callable[[float, float], float]|tf.losses.Loss=None) -> None:
         """
         Compile a model with all of the necessary parameters. This Manager will
@@ -89,16 +91,17 @@ class MADEManager(ModelManager):
             hidden_units=self._hidden_units,
             activation=self._activation,
             prior=prior,
-            optimizer=opt,
+            optimizer=optimizer,
             loss=loss)
         
         self._prior = prior
-        self._opt = opt
+        self._opt = optimizer
         self._loss = loss
         self._model = model
         self._dist = dist
         self._made_list = made_list
         self.is_compiled = True
+
 
     def train_model(self,
                     dm: DataManager=None,
@@ -186,7 +189,7 @@ class MADEManager(ModelManager):
                          seed=seed,
                          *args)
     
-    # TODO save only the param layers (MADE) and nothing else
+
     def export_model(self, path: str) -> bool:
         if not self.is_compiled:
             print_msg("This model is not compiled. Please use the instance" + \

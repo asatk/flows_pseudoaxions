@@ -161,7 +161,7 @@ def main(argv):
 
     if train:
         #compile model
-        mm = fx.MADEManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
+        mm = fx.MAFManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
                             hidden_layers=hidden_layers, hidden_units=hidden_units,
                             lr_tuple=lr_tuple)
         mm.compile_model()
@@ -187,7 +187,7 @@ def main(argv):
         if not os.path.isdir(flow_path):
             print("flow_path to model does not exist. Provide a path to an existing model to load or train new model.")
             sys.exit()
-        mm = fx.MADEManager.import_model(path=flow_path)
+        mm = fx.MAFManager.import_model(path=flow_path)
         
     if evaluate:
         #Generate data

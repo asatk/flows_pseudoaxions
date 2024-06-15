@@ -13,7 +13,13 @@ __version__ = "0.1.0"
 from ._generators import CircleGaussGenerator, LineGaussGenerator, GridGaussGenerator
 from ._loaders import Loader, NumpyLoader, RootLoader
 from ._managers import DataManager, ModelManager
-from ._modelmanagers import MADEManager
+from ._modelmanagers import MAFManager
+
+from . import train
+from . import io
+from . import utils
+from . import pretrain
+from . import posttrain
 
 # tf.config.experimental.enable_op_determinism()
 # tf.random.set_seed(seed)
@@ -28,7 +34,7 @@ __all__ = [
     "RootLoader",
     "DataManager",
     "ModelManager",
-    "MADEManager",
+    "MAFManager",
     "constants",
     "io",
     "posttrain",
