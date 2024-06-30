@@ -139,20 +139,30 @@ class ModelManager(metaclass=abc.ABCMeta):
         self.is_trained = False
         self.state_dict = {}
 
+    @classmethod
     @abc.abstractmethod
-    def compile_model(self) -> None:
+    def load(cls) -> Self:
         ...
 
     @abc.abstractmethod
-    def train_model(self, data: ndarray, cond: ndarray, batch_size: int,
-                    starting_epoch: int=0, end_epoch: int=1,
-                    path: str|None=None, callbacks: list=None) -> None:
+    def compile(self) -> None:
         ...
 
     @abc.abstractmethod
-    def eval_model(self, cond) -> ndarray:
+    def train(self,
+              data: ndarray,
+              cond: ndarray,
+              batch_size: int,
+              starting_epoch: int=0,
+              end_epoch: int=1,
+              path: str|None=None,
+              callbacks: list=None) -> None:
         ...
 
     @abc.abstractmethod
-    def export_model(self, path: str) -> bool:
+    def eval(self, cond: ndarray=None) -> ndarray:
+        ...
+
+    @abc.abstractmethod
+    def save(self, path: str) -> bool:
         ...

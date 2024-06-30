@@ -61,7 +61,7 @@ def make_model(id: str, end_epoch: int, batch_size: int):
                         hidden_layers=hidden_layers, hidden_units=hidden_units,
                         lr_tuple=lr_tuple)
     
-    mm.compile_model()
+    mm.compile()
     
     flow_path = f"./model/11-16_{id}/"
     loss_path = flow_path + "loss.npy"
@@ -81,7 +81,7 @@ def test_model(label: tuple[float, float], output_path: str, ggg: fx.DataManager
     gen_labels_unique = label
     gen_labels = np.repeat([gen_labels_unique], ngen, axis=0)
     gen_cond = ggg.norm(gen_labels, is_cond=True)
-    gen_data = mm.eval_model(gen_cond)
+    gen_data = mm.eval(gen_cond)
     gen_samples = ggg.denorm(gen_data, is_cond=False)
 
     _, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
@@ -122,9 +122,9 @@ if __name__ == "__main__":
         samples, labels, data, cond, ggg = generate_gaussian_data(spec, plot=False)
         mm, callbacks, flow_path = make_model(id=str(i), end_epoch=end_epoch, batch_size=batch_size)
 
-        mm.train_model(data=data, cond=cond, batch_size=batch_size,
+        mm.train(data=data, cond=cond, batch_size=batch_size,
                initial_epoch=starting_epoch, epochs=end_epoch,
-               path=flow_path, callbacks=callbacks)
+               flow_path=flow_path, callbacks=callbacks)
         
         for test_label in test_labels:
             plot_output_path = f"output/model_{str(i)}_label_{test_label[0]:.2f}_{test_label[1]:.2f}.png"

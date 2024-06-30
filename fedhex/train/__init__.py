@@ -5,8 +5,10 @@ Training Functions
 from ._callbacks import BatchLossHistory, Checkpointer, EpochLossHistory, \
     LossHistory, SelectiveProgbarLogger
 
-from . import tf
-from . import pyt
+from ._flow_base import build_flow, compile_flow, intermediate_flow, load_flow
+from ._MAF import build_MAF, compile_MAF, intermediate_MAF, load_MAF, MADE
+from ._train import train
+from ._loss import NLL
 
 __all__ = [
     "BatchLossHistory",
@@ -14,4 +16,11 @@ __all__ = [
     "EpochLossHistory",
     "LossHistory",
     "SelectiveProgbarLogger",
+    "build_MAF",
+    "compile_MAF",
+    "intermediate_MAF",
+    "load_MAF",
+    "MADE",
+    "train",
+    "NLL"
 ]

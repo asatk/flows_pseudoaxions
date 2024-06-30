@@ -164,7 +164,7 @@ def main(argv):
         mm = fx.MAFManager(num_flows=nmade, len_event=ninputs, len_cond_event=ncinputs,
                             hidden_layers=hidden_layers, hidden_units=hidden_units,
                             lr_tuple=lr_tuple)
-        mm.compile_model()
+        mm.compile()
     
         #callbacks
         callbacks = []
@@ -176,9 +176,9 @@ def main(argv):
 
         callbacks.append(SelectiveProgbarLogger(1, epoch_interval=log_freq, epoch_end=end_epoch))
         #Train model
-        mm.train_model(data=data, cond=cond, batch_size=batch_size,
+        mm.train(data=data, cond=cond, batch_size=batch_size,
                     initial_epoch=starting_epoch, epochs=end_epoch,
-                    path=flow_path, callbacks=callbacks)
+                    flow_path=flow_path, callbacks=callbacks)
         
         #Save model
         mm.save(flow_path + "/config.json")
@@ -187,14 +187,14 @@ def main(argv):
         if not os.path.isdir(flow_path):
             print("flow_path to model does not exist. Provide a path to an existing model to load or train new model.")
             sys.exit()
-        mm = fx.MAFManager.import_model(path=flow_path)
+        mm = fx.MAFManager.load(path=flow_path)
         
     if evaluate:
         #Generate data
         gen_labels = np.repeat(gen_labels_unique, ngen, axis=0)
         gen_cond = rl.norm(gen_labels, is_cond=True)
         
-        test, gen_data = mm.eval_model(gen_cond, rl, ranges=ranges)  
+        test, gen_data = mm.eval(gen_cond, rl, ranges=ranges)  
         gen_samples = gen_data
 
         #Plot data

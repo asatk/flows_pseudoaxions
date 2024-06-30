@@ -3,7 +3,7 @@ import numpy as np
 import fedhex as fx
 from fedhex.pretrain import generation as fxgen
 from fedhex.train import SelectiveProgbarLogger, BatchLossHistory
-from fedhex.train.tf import NLL
+from fedhex.train import NLL
 
 ndim = 2
 nx = ny = 10
@@ -33,15 +33,15 @@ def f(x, logprob):
 loss = None     # Default loss fn
 # loss = NLL()  # import/create keras.losses.Loss class
 # loss = f      # create function
-mm = fx.MAFManager.import_model(flow_path, loss=loss)
+mm = fx.MAFManager.load(flow_path, loss=loss)
 
 epochs = int(2 * epochs)
 callbacks = []
 callbacks.append(SelectiveProgbarLogger(1, epoch_interval=log_freq, epoch_end=epochs))
 callbacks.append(BatchLossHistory(flow_path + "/loss.npy"))
-mm.train_model(dm=gen,
+mm.train(dm=gen,
                batch_size=batch_size,
                initial_epoch=int(epochs/2),
                epochs=epochs,
                callbacks=callbacks,
-               path=flow_path)
+               flow_path=flow_path)

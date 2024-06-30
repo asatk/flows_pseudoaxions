@@ -26,18 +26,17 @@ maf = fx.MAFManager(num_flows=num_flows,
                     len_cond_event=2,
                     hidden_units=hidden_units)
 
-prior = tfd.Sample(
-    tfd.Normal(loc=[0.], scale=[sigma]),
-    sample_shape=[2])
+from tensorflow.python.keras import regularizers
 
-maf.compile(prior=prior,
-            optimizer=None,
-            loss=None)
+reg = 0.01
+MADE_kwargs = dict(kernel_regularizer=regularizers.L2(reg),
+                   bias_regularizer=regularizers.L2(reg))
+maf.compile(MADE_kwargs=MADE_kwargs)
 
 batch_size = 1024
 initial_epoch = 0
 epochs = 10
-flow_path = "./model/test-prior"
+flow_path = "./model/test-regularizers"
 
 maf.train(dm,
           data=data,

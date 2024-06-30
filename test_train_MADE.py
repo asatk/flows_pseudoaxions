@@ -4,7 +4,7 @@ from tensorflow import keras
 import fedhex as fx
 from fedhex.pretrain import generation as fxgen
 from fedhex.train import SelectiveProgbarLogger, BatchLossHistory
-from fedhex.train.tf import NLL
+from fedhex.train import NLL
 
 ndim = 2
 nx = ny = 10
@@ -36,7 +36,7 @@ callbacks.append(SelectiveProgbarLogger(1, epoch_interval=log_freq, epoch_end=ep
 callbacks.append(BatchLossHistory(flow_path + "/loss.npy"))
 
 
-model = fx.MADEManager(num_flows=nmade,
+model = fx.MAFManager(num_flows=nmade,
                len_event=ninputs,
                len_cond_event=ncinputs,
                hidden_units=hidden_units,
@@ -51,10 +51,10 @@ loss = None     # Default loss fn
 # loss = NLL()  # import/create keras.losses.Loss class
 # loss = _loss  # create function
 
-model.compile_model(opt=opt, loss=loss)
+model.compile(optimizer=opt, loss=loss)
 
-model.train_model(dm=gen,
+model.train(dm=gen,
                   batch_size=batch_size,
                   epochs=epochs,
                   callbacks=callbacks,
-                  path=flow_path)
+                  flow_path=flow_path)

@@ -108,7 +108,7 @@ if __name__ == "__main__":
                 hidden_layers=hidden_layers,
                 activation="relu",
                 lr_tuple=lr_tuple)
-    mm.compile_model()
+    mm.compile()
 
 
 
@@ -130,16 +130,16 @@ if __name__ == "__main__":
 
 
 
-    mm.train_model(data=data,
+    mm.train(data=data,
             cond=cond,
             batch_size=batch_size,
             initial_epoch=starting_epoch,
             epochs=end_epoch,
-            path=model_path,
+            flow_path=model_path,
             callbacks=callbacks)
     config_path = model_path + "/config.json"
     mm.save(config_path=config_path)
-    mm = fx.MAFManager.import_model(path="./model/2024-04-04-job/")
+    mm = fx.MAFManager.load(path="./model/2024-04-04-job/")
 
 
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     gen_labels = np.repeat(gen_labels_unique, ngen, axis=0)
     # gen_cond = rl.norm(gen_labels, is_cond=True)
 
-    gen_samples = mm.eval_model(gen_labels, rl, criteria=lambda x: x[:,1] < 0.415)
+    gen_samples = mm.eval(gen_labels, rl, criteria=lambda x: x[:,1] < 0.415)
 
     unique_labels, unique_inverse = np.unique(gen_labels, return_inverse=True, axis=0)
     gen_samples_grouped = [gen_samples[unique_inverse == i] for i in range(len(gen_labels_unique))]

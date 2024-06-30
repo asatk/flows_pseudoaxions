@@ -11,7 +11,7 @@ import os
 # from scipy.stats import chisquare, kstest
 from typing import Any
 
-from ..train.tf import _MAF
+from ..train import _MAF
 from ..utils import LOG_ERROR, LOG_FATAL, print_msg
 from .plot import hist_one, plot_all, plot_losses, plot_one, \
     make_genplot_kwargs, make_trnplot_kwargs
