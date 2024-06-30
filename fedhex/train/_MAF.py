@@ -97,97 +97,6 @@ class MADE(tfb.AutoregressiveNetwork):
 
 # TODO turn build/compile/eval _MAF into a MAF(keras.Model) class
 
-def build_MAF(num_flows: int,
-              len_event: int,
-              len_cond_event: int|None,
-              hidden_units: list[int],
-              activation: str="relu",
-              prior: Distribution=None,
-              MADE_kwargs: dict|None=None,
-              MAF_kwargs: dict|None=None
-              )-> tuple[
-                  TransformedDistribution,
-                  list]:
-    """Construct a flow using a chain of MADE bijections.
-
-    Args:
-        num_flows (int): number of transformations to the base distribution
-        len_event (int): number of features in the vectorized input data
-        len_cond_event (int | None): number of features in the vectorized\
-            conditional input data. If None, the flow will not learn a\
-            conditional density but instead learn to model the entire data set.
-        hidden_units (list[int]): list of parameters in each layer of the MADE
-        activation (str, optional): activation function between each layer in\
-            each made. Defaults to "relu".
-        prior (Distribution, optional): base distribution from which samples\
-            are drawn and then transformed by the flow. If None, the base\
-            distribution is `len_event` standard normals. Defaults to None.
-        MADE_kwargs (dict): additional arguments for the Tensorflow\
-            AutoregressiveNetwork class. Defaults to None.
-        MAF_kwargs (dict): additional arguments for the Tensorflow\
-            MaskedAutoregressiveFlows class. Defaults to None.
-            
-    Returns:
-        distribution (TransformedDistribution): distribution whose parameters\
-            are learned during training and whose samples of the base\
-            distribution are transformed through the flow to match the target\
-            distribution
-        maf_list (list[MAF]): list of each MAF in the chain
-    """
-
-    if prior is None or not isinstance(prior, Distribution):
-        print_msg(f"Using default prior/base distribution: {len_event} joint Standard Normals")
-        prior = tfd.Sample(tfd.Normal(loc=0., scale=1.),
-                           sample_shape=[len_event])
-
-    event_shape = (len_event, )
-    if len_cond_event is None:
-        conditional = False
-        cond_event_shape = None
-    else:
-        conditional = True
-        cond_event_shape = (len_cond_event,)
-
-    if MADE_kwargs is None:
-        MADE_kwargs = {}
-
-    if MAF_kwargs is None:
-        MAF_kwargs = {}
-
-    # construct a list of all flows and permute input dimensions btwn each
-    maf_list = []
-    for i in range(num_flows):
-        
-        # 2 params indicates learning one param for the scale and the shift
-        made = MADE(params=2,
-                    hidden_units=hidden_units,
-                    event_shape=event_shape,
-                    conditional=conditional,
-                    conditional_event_shape=cond_event_shape,
-                    activation=activation,
-                    name=f"made_{i}",
-                    **MADE_kwargs)
-        
-        maf = MAF(shift_and_log_scale_fn=made,
-                  name=f"maf_{i}",
-                  **MAF_kwargs)
-        maf_list.append(maf)
-
-        # there is no permute on the output layer
-        if i < num_flows - 1:
-            perm = tfb.Permute(np.arange(len_event)[::-1])
-            maf_list.append(perm)
-
-    # chain the flows together to complete bijection
-    chain = tfb.Chain(list(reversed(maf_list)))
-
-    # transform a distribution of joint std normals to our target distribution
-    distribution = TransformedDistribution(
-        distribution=prior,
-        bijector=chain)
-    
-    return distribution, maf_list
-
 
 def compile_MAF(num_flows: int,
                 len_event: int,
@@ -256,6 +165,7 @@ def compile_MAF(num_flows: int,
         keras.saving.register_keras_serializable(package="Custom",
                                                  name="custom_loss")(loss)
 
+    # Provide base distribution to be transformed into the target distribution
     if prior is None or not isinstance(prior, Distribution):
         print_msg(f"Using default prior/base distribution: {len_event} joint Standard Normals")
         prior = tfd.Sample(tfd.Normal(loc=0., scale=1.),
@@ -306,18 +216,6 @@ def compile_MAF(num_flows: int,
     distribution = TransformedDistribution(
         distribution=prior,
         bijector=chain)
-
-
-    # # Build model layers and compile
-    # distribution, maf_list = build_MAF(
-    #     num_flows=num_flows,
-    #     len_event=len_event,
-    #     len_cond_event=len_cond_event,
-    #     hidden_units=hidden_units,
-    #     activation=activation,
-    #     prior=prior,
-    #     MADE_kwargs=MADE_kwargs,
-    #     MAF_kwargs=MAF_kwargs)
     
     # Data and Conditional Data input layers
     x_ = keras.layers.Input(shape=(len_event,), name="aux_input")
@@ -358,9 +256,7 @@ def eval_MAF(cond,
     if dm is not None:
         cond = dm.norm(samples=cond, is_cond=True)
 
-
     num_flows = len([layer.name for layer in made_list if layer.name[:3] == "maf"])
-
 
     # Pass the flow the conditional inputs (labels)
     current_kwargs = {}
@@ -416,12 +312,14 @@ def eval_MAF(cond,
     return gen_data
 
 
-def intermediate_MAF(made_list):
+def intermediate_MAF(prior, made_list):
 
     """
     Separate each step of the flow into individual distributions in order to
     samples from and test each bijection's output.
     """
+
+    num_flows = len([layer.name for layer in made_list if layer.name[:3] == "maf"])
 
     # reverse the list of made blocks to unpack in generating direction
     made_list_rev = list(reversed(made_list[:-1]))
@@ -430,20 +328,16 @@ def intermediate_MAF(made_list):
 
     made_chain = tfb.Chain([])
     dist = TransformedDistribution(
-        distribution=tfd.Sample(
-            tfd.Normal(loc=0., scale=1.),
-            sample_shape=[2]), # TODO shape is not 2 in general
+        distribution=prior,
         bijector=made_chain)
     feat_extraction_dists.append(dist)
 
-    for i in range(1, len(made_list_rev), 2):
-        made_chain = tfb.Chain(made_list_rev[0:i])
-        dist = TransformedDistribution(
-            distribution=tfd.Sample(
-                tfd.Normal(loc=0., scale=1.),
-                sample_shape=[2]),
-            bijector=made_chain)
-        feat_extraction_dists.append(dist)
+    # for made_block in made_list_rev:
+    #     made_chain = tfb.Chain(made_list_rev[0:i])
+    #     dist = TransformedDistribution(
+    #         distribution=prior,
+    #         bijector=made_chain)
+    #     feat_extraction_dists.append(dist)
 
     return feat_extraction_dists
 
