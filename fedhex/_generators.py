@@ -4,7 +4,7 @@ from numpy import ndarray
 from typing import Self
 
 from .constants import DEFAULT_SEED, WHITEN_EPSILON
-from .pretrain.generation import CovModStrategy, NoneMod, sample_gaussian
+from .pretrain.generation import CovModStrategy, NoneMod, sample_gaussian, DiagCov, RepeatStrategy
 from .utils import LOG_ERROR, print_msg
 
 from ._managers import DataManager
@@ -144,6 +144,59 @@ class GridGaussGenerator(GaussGenerator):
         self.has_generated = True
         self.has_original = True
 
+        return samples, labels
+    
+    @classmethod
+    def import_cfg(cls: Self, config_path: str):
+        print(f"{str(cls)}:{config_path}")
+
+
+class UnitCubeGaussGenerator(Generator):
+    """Pre-set distribution of equally-spaced Gaussians in [0,1]^d, the unit
+    hyper-cube. Their spacing is twice their scale parameter which is
+    determined by the number of gaussians per dimension:
+    `sigma` = 1/2/(`ngaus`+1)
+    """
+    def __init__(self,
+                 ndim: int=2,
+                 ngaus: int=10,
+                 seed: int=DEFAULT_SEED):
+        super().__init__(ndist=[ngaus] * ndim,
+                         seed=seed)
+        self.ndim = ndim
+        self.ngaus = ngaus
+        
+    def generate(self, nsamp: int=1000):
+        
+        sigma = 1 / (self.ngaus + 1) / 2 # scale of spacing btwn distributions
+
+        axes = []
+        for d in range(self.ndim):
+            ax = np.linspace(0, 1, self.ngaus + 1, endpoint=False)[:-1]
+            ax += 2 * sigma
+            axes.append(ax)
+        
+        coords = np.meshgrid(*axes)
+        coords_list = []
+        for coord in coords:
+            coords_list.append(coord.ravel())
+        cond = np.array(coords_list).T
+
+        covs = RepeatStrategy(
+            DiagCov(ndim=self.ndim, sigma=sigma)
+        ).create(cond)
+
+        samples, labels = sample_gaussian(nsamples=nsamp,
+                                          labels_unique=cond,
+                                          means=cond,
+                                          covs=covs,
+                                          rng=self._rng)
+        
+        self._samples = samples
+        self._labels = labels
+        self.has_generated = True
+        self.has_original = True
+        
         return samples, labels
     
     @classmethod
