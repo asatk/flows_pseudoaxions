@@ -17,11 +17,14 @@ from typing import Any, Callable
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow_probability.python import bijectors as tfb
-from tensorflow_probability.python import distributions as tfd
-from tensorflow_probability.python.bijectors import \
-    MaskedAutoregressiveFlow as MAF
-from tensorflow_probability.python.distributions import Distribution, TransformedDistribution
+from tensorflow_probability.python.bijectors import AutoregressiveNetwork
+from tensorflow_probability.python.bijectors import Chain
+from tensorflow_probability.python.bijectors import Permute
+from tensorflow_probability.python.bijectors import MaskedAutoregressiveFlow as MAF
+from tensorflow_probability.python.distributions import Distribution
+from tensorflow_probability.python.distributions import Normal
+from tensorflow_probability.python.distributions import Sample
+from tensorflow_probability.python.distributions import TransformedDistribution
 
 from fedhex.constants import DEFAULT_SEED
 
@@ -31,7 +34,7 @@ from ._loss import NLL
 
 
 @keras.saving.register_keras_serializable(name="Made")
-class MADE(tfb.AutoregressiveNetwork):
+class MADE(AutoregressiveNetwork):
     """
     A duplicate of tfp.bijectors.AutoregressiveNetwork class with tanh applied
     on the output log-scape. This is important for improved regularization and
@@ -95,7 +98,227 @@ class MADE(tfb.AutoregressiveNetwork):
     #     return cls(sublayer, **config)
 
 
-# TODO turn build/compile/eval _MAF into a MAF(keras.Model) class
+def MADE_factory(params=None,
+                 event_shape=None,
+                 conditional=True,
+                 conditional_event_shape=None,
+                 conditional_input_layers="all_layers",
+                 hidden_units=None,
+                 input_order="left-to-right",
+                 hidden_degrees="equal",
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer="glorot_uniform",
+                 bias_initializer="zeros",
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 validate_args=False,
+                 **kwargs) -> Callable[..., MADE]:
+
+    name = kwargs.pop("name", "made")
+
+    def f(name_suffix: str=""):
+        return MADE(params=params,
+                    event_shape=event_shape,
+                    conditional=conditional,
+                    conditional_event_shape=conditional_event_shape,
+                    conditional_input_layers=conditional_input_layers,
+                    hidden_units=hidden_units,
+                    input_order=input_order,
+                    hidden_degrees=hidden_degrees,
+                    activation=activation,
+                    use_bias=use_bias,
+                    kernel_initializer=kernel_initializer,
+                    bias_initializer=bias_initializer,
+                    kernel_regularizer=kernel_regularizer,
+                    bias_regularizer=bias_regularizer,
+                    kernel_constraint=kernel_constraint,
+                    bias_constraint=bias_constraint,
+                    validate_args=validate_args,
+                    name=name + name_suffix,
+                    **kwargs)
+    
+    return f
+
+def MAF_factory(shift_and_log_scale_fn=None,
+                bijector_fn=None,
+                is_constant_jacobian=False,
+                validate_args=False,
+                unroll_loop=False,
+                event_ndims=1,
+                name="maf") -> Callable[..., MADE]:
+
+    def f(name_suffix: str=""):
+        return MAF(shift_and_log_scale_fn=shift_and_log_scale_fn,
+                   bijector_fn=bijector_fn,
+                   is_constant_jacobian=is_constant_jacobian,
+                   validate_args=validate_args,
+                   unroll_loop=unroll_loop,
+                   event_ndims=event_ndims,
+                   name=name + name_suffix)
+    
+    return f
+
+
+# TODO turn compile/eval _MAF into a MAF(keras.Model) class
+@keras.saving.register_keras_serializable(name="MafModel")
+class MAFModel(keras.Model):
+
+    def __init__(self,
+                 num_flows: int,
+                 hidden_units: list[int],
+                 len_event: int,
+                 len_conditional_event: int=None,
+                 activation: str="relu",
+                 base: TransformedDistribution=None,
+                 MADE_factory: Callable[..., MADE]=MADE_factory,
+                 MAF_factory: Callable[..., MAF]=MAF_factory):
+        super().__init__()
+
+        self._num_flows = num_flows
+        self._hidden_units = hidden_units
+        self._len_event = len_event
+        self._len_conditional_event = len_conditional_event
+        self._activation = activation
+        self._base = base
+        self._MADE_kwargs = MADE_kwargs
+        self._MAF_kwargs = MAF_kwargs
+
+        event_shape = (len_event,)
+        if len_conditional_event is None:
+            self._conditional = False
+            cond_event_shape = None
+        else:
+            self._conditional = True
+            cond_event_shape = (len_conditional_event,)
+
+        if MADE_kwargs is None:
+            MADE_kwargs = {}
+
+        if MAF_kwargs is None:
+            MAF_kwargs = {}
+
+
+        # construct a list of all flows and permute input dimensions btwn each
+        maf_list = []
+        # reverse order of input elements between layers
+        permutation = np.arange(len_event)[::-1]
+        for i in range(num_flows):
+            
+            # 2 params indicates learning one param for the scale and the shift
+            made = MADE(params=2,
+                        hidden_units=hidden_units,
+                        event_shape=event_shape,
+                        conditional=self._conditional,
+                        conditional_event_shape=cond_event_shape,
+                        activation=activation,
+                        name=f"made_{i}",
+                        **MADE_kwargs)
+            
+            maf = MAF(shift_and_log_scale_fn=made,
+                    name=f"maf_{i}",
+                    **MAF_kwargs)
+            maf_list.append(maf)
+
+            # there is no permute on the output layer
+            if i < num_flows - 1:
+                perm = Permute(permutation)
+                maf_list.append(perm)
+
+        # chain the flows together to complete bijection
+        chain = Chain(list(reversed(maf_list)))
+
+        # transform a distribution of joint std normals to our target distribution
+        self.distribution = TransformedDistribution(
+            distribution=base,
+            bijector=chain)
+        
+        # # Data and Conditional Data input layers
+        # x_ = keras.layers.Input(shape=(len_event,), name="aux_input")
+        # input_list = [x_]
+        # current_kwargs = {}
+        # if conditional:
+        #     c_ = keras.layers.Input(shape=(len_conditional_event,), name="cond_input")
+        #     input_list.append(c_)
+
+        #     # Provide input tensors/placeholders for conditional data to the bijectors
+        #     for i in range(num_flows):
+        #         current_kwargs[f"maf_{i}"] = {"conditional_input" : c_}
+
+        # # Log-likelihood output of distribution is network output
+        # log_prob_ = distribution.log_prob(x_, bijector_kwargs=current_kwargs)
+
+    def call(self, inputs, training=False):
+        x = inputs[0]
+        c = inputs[1]
+
+        current_kwargs = {}
+        if self._conditional:
+            for i in range(self._num_flows):
+                current_kwargs[f"maf_{i}"] = {"conditional_input" : c}
+        
+        return self.distribution.log_prob(x, bijector_kwargs=current_kwargs)
+    
+    def sample(self,
+               conditional_input=None,
+               criteria: Callable=None,
+               ranges: list[list[float]]=None,
+               seed: int=DEFAULT_SEED,
+               *args):
+        
+        current_kwargs = {}
+        if self._conditional:
+            # Pass the flow the conditional inputs (labels)
+            for i in range(self._num_flows):
+                current_kwargs[f"maf_{i}"] = {"conditional_input" : conditional_input}
+        
+        # Evaluate the flow at each of the provided conditional inputs
+        gen_data = np.array(self.distribution.sample(len(conditional_input),
+                                            bijector_kwargs=current_kwargs,
+                                            seed=seed))
+    
+        #If there is no rejection criterion, return the generated data
+        if criteria is None and ranges is None:
+            return gen_data
+        
+        # Handle `None` as +/- inifity when `ranges` is used
+        if ranges is not None:
+            criteria = mask_outside
+            for r in ranges:
+                if r[0] is None:
+                    r[0] = -np.inf
+                if r[1] is None:
+                    r[1] = np.inf
+            args = (ranges,)
+        
+        # Create a mask based on rejection criteria applied to generated data
+        mask = criteria(gen_data, *args)
+
+        # Re-sample until no elements are rejected
+        while(np.any(mask)):
+            
+            # Pass the flow the new conditional inputs (labels)
+            current_kwargs = {}
+            if self._conditional:
+                for i in range(self._num_flows):
+                    current_kwargs[f"maf_{i}"] = {"conditional_input" : conditional_input[mask]}
+            
+            # Re-sample
+            gen_resample_norm = np.array(self.distribution.sample(np.sum(mask),
+                                                    bijector_kwargs=current_kwargs,
+                                                    seed=seed))
+            if dm is not None:
+                gen_data[mask] = dm.denorm(gen_resample_norm, is_cond=False)
+            else:
+                gen_data[mask] = gen_resample_norm
+            
+            # Update mask based on rejection criteria applied to new data
+            mask = criteria(gen_data, *args)
+        
+        return gen_data
+
 
 
 def compile_MAF(num_flows: int,
@@ -103,7 +326,7 @@ def compile_MAF(num_flows: int,
                 len_cond_event: int|None,
                 hidden_units: list[int],
                 activation: str="relu",
-                prior: Distribution=None,
+                base: Distribution=None,
                 optimizer: keras.optimizers.Optimizer=None,
                 loss: Callable|tf.losses.Loss=None,
                 MADE_kwargs: dict|None=None,
@@ -124,7 +347,7 @@ def compile_MAF(num_flows: int,
         hidden_units (list[int]): list of parameters in each layer of the MADE
         activation (str, optional): activation function between each layer in\
             each made. Defaults to "relu".
-        prior (Distribution, optional): base distribution from which samples\
+        base (Distribution, optional): base distribution from which samples\
             are drawn and then transformed by the flow. If None, the base\
             distribution is `len_event` standard normals. Defaults to None.
         optimizer (keras.optimizers.Optimizer, optional): optimizer used for\
@@ -166,10 +389,10 @@ def compile_MAF(num_flows: int,
                                                  name="custom_loss")(loss)
 
     # Provide base distribution to be transformed into the target distribution
-    if prior is None or not isinstance(prior, Distribution):
-        print_msg(f"Using default prior/base distribution: {len_event} joint Standard Normals")
-        prior = tfd.Sample(tfd.Normal(loc=0., scale=1.),
-                           sample_shape=[len_event])
+    if base is None or not isinstance(base, Distribution):
+        print_msg(f"Using default base distribution: {len_event} joint Standard Normals")
+        base = Sample(Normal(loc=0., scale=1.),
+                      sample_shape=[len_event])
 
     event_shape = (len_event, )
     if len_cond_event is None:
@@ -187,6 +410,8 @@ def compile_MAF(num_flows: int,
 
     # construct a list of all flows and permute input dimensions btwn each
     maf_list = []
+    # reverse order of input elements between layers
+    permutation = np.arange(len_event)[::-1]
     for i in range(num_flows):
         
         # 2 params indicates learning one param for the scale and the shift
@@ -206,15 +431,15 @@ def compile_MAF(num_flows: int,
 
         # there is no permute on the output layer
         if i < num_flows - 1:
-            perm = tfb.Permute(np.arange(len_event)[::-1])
+            perm = Permute(permutation)
             maf_list.append(perm)
 
     # chain the flows together to complete bijection
-    chain = tfb.Chain(list(reversed(maf_list)))
+    chain = Chain(list(reversed(maf_list)))
 
     # transform a distribution of joint std normals to our target distribution
     distribution = TransformedDistribution(
-        distribution=prior,
+        distribution=base,
         bijector=chain)
     
     # Data and Conditional Data input layers
@@ -295,7 +520,7 @@ def eval_MAF(cond,
         # Pass the flow the new conditional inputs (labels)
         current_kwargs = {}
         for i in range(num_flows):
-            current_kwargs[f"made_{i}"] = {"conditional_input" : cond[mask]}
+            current_kwargs[f"maf_{i}"] = {"conditional_input" : cond[mask]}
         
         # Re-sample
         gen_resample_norm = np.array(dist.sample(np.sum(mask),
@@ -326,7 +551,7 @@ def intermediate_MAF(prior, made_list):
 
     feat_extraction_dists = []
 
-    made_chain = tfb.Chain([])
+    made_chain = Chain([])
     dist = TransformedDistribution(
         distribution=prior,
         bijector=made_chain)
@@ -395,10 +620,11 @@ def load_MAF(flow_path: str|None=None,
     made_list = []
     maf_list = []
 
+    permutation = np.arange(0, event_shape)[::-1]
     for i in range(num_flows):
         made = model.get_layer(name=f"made_{i}")
         maf = MAF(shift_and_log_scale_fn=made, name=f"maf_{i}")
-        perm = tfb.Permute(np.arange(0, event_shape)[::-1])
+        perm = Permute(permutation)
         
         made_list.append(made)
         maf_list.append(maf)
@@ -407,11 +633,11 @@ def load_MAF(flow_path: str|None=None,
             maf_list.append(perm)
 
     # chain the flows together to complete bijection
-    chain = tfb.Chain(list(reversed(maf_list)))
+    chain = Chain(list(reversed(maf_list)))
 
     # transform a distribution of joint std normals to our target distribution
     distribution = TransformedDistribution(
-        distribution=tfd.Sample(tfd.Normal(loc=0., scale=1.), sample_shape=[event_shape]),
+        distribution=Sample(Normal(loc=0., scale=1.), sample_shape=[event_shape]),
         bijector=chain)
     
     cfg = dict(num_flows=num_flows,
