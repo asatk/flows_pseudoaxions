@@ -66,11 +66,11 @@ class MAFManager(ModelManager):
 
         model, dist, made_list, cfg = load_MAF(flow_path=path, loss=loss)
         mm = MAFManager(num_flows=cfg["num_flows"],
-                         len_event=cfg["len_event"],
-                         len_cond_event=cfg["len_cond_event"],
-                         hidden_units=cfg["hidden_units"],
-                         activation=cfg["activation"],
-                         )
+                        len_event=cfg["len_event"],
+                        len_cond_event=cfg["len_cond_event"],
+                        hidden_units=cfg["hidden_units"],
+                        activation=cfg["activation"],
+        )
         
         mm._model = model
         mm._dist = dist
@@ -100,7 +100,7 @@ class MAFManager(ModelManager):
             len_cond_event=self._len_cond_event,
             hidden_units=self._hidden_units,
             activation=self._activation,
-            prior=prior,
+            base=prior,
             optimizer=optimizer,
             loss=loss,
             MADE_kwargs=MADE_kwargs,
@@ -205,8 +205,8 @@ class MAFManager(ModelManager):
         
         self.is_trained = True
         return self._history
-        
-        
+
+
     def eval(self,
              cond: ndarray=None,
              dm: DataManager=None,
@@ -216,9 +216,8 @@ class MAFManager(ModelManager):
              *args) -> ndarray:
 
         if self.is_trained is False:
-            print_msg("The model is not trained. Please use the instance " + \
-                      "method `MADEManager.train_model()` in order to " + \
-                      "evaluate this model.", level=LOG_ERROR)
+            print_msg("The model is not trained. Execute `train()` " + \
+                      "first to evaluate this model.", level=LOG_ERROR)
             return None
         
         return eval_MAF(cond,
@@ -233,8 +232,8 @@ class MAFManager(ModelManager):
 
     def save(self, path: str) -> bool:
         if not self.is_compiled:
-            print_msg("This model is not compiled. Please use the instance" + \
-                      "method `compile_model()` in order to save this model.",
+            print_msg("This model is not compiled. Execute `compile()` " + \
+                      "first to save this model.",
                       level=LOG_ERROR)
             return False
         
