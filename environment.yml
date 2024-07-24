@@ -14,3 +14,4 @@ dependencies:
   - scipy=1.11.4
   - tensorflow=2.14.0
   - tensorflow-probability=0.22.1
+  - python-htcondor=23.5.3
