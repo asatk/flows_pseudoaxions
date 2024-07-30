@@ -28,8 +28,7 @@ from tensorflow_probability.python.distributions import TransformedDistribution
 
 from fedhex.constants import DEFAULT_SEED
 
-from .._loaders import DataManager
-from ..io._path import LOG_WARN, print_msg
+from ..utils import print_msg, LOG_WARN
 from ._loss import NLL
 
 
@@ -69,7 +68,6 @@ class MADE(AutoregressiveNetwork):
         self.conditional_event_shape = conditional_event_shape
         self.hidden_units = hidden_units
         self.activation = activation
-        
     
     def call(self, x, conditional_input=None):
         result = super().call(x, conditional_input=conditional_input)
@@ -313,14 +311,14 @@ def mask_outside(arr: np.ndarray, ranges: list[list[float]]):
 def eval_MAF(cond,
              made_list: list,
              dist: TransformedDistribution,
-             dm: DataManager=None,
+            #  dm: DataManager=None,
              criteria: Callable=None,
              ranges: list[list[float]]=None,
              seed: int=DEFAULT_SEED,
              *args) -> np.ndarray:
     
-    if dm is not None:
-        cond = dm.norm(samples=cond, is_cond=True)
+    # if dm is not None:
+    #     cond = dm.norm(samples=cond, is_cond=True)
 
     num_flows = len([layer.name for layer in made_list if layer.name[:3] == "maf"])
 
@@ -335,11 +333,12 @@ def eval_MAF(cond,
                                          seed=seed))
     
     # Use DM to transform data into problem space where criteria are defined
-    if dm is not None:
-        gen_data = dm.denorm(gen_data_norm, is_cond=False)
-   
+    # if dm is not None:
+    #     gen_data = dm.denorm(gen_data_norm, is_cond=False)
+    gen_data = gen_data_norm
+
     #If there is no rejection criterion, return the generated data
-    if criteria is None and ranges is None:
+    if not bool(criteria) and not bool(ranges):
         return gen_data
     
     # Handle `None` as +/- inifity when `ranges` is used
@@ -367,10 +366,10 @@ def eval_MAF(cond,
         gen_resample_norm = np.array(dist.sample(np.sum(mask),
                                                  bijector_kwargs=current_kwargs,
                                                  seed=seed))
-        if dm is not None:
-            gen_data[mask] = dm.denorm(gen_resample_norm, is_cond=False)
-        else:
-            gen_data[mask] = gen_resample_norm
+        # if dm is not None:
+        #     gen_data[mask] = dm.denorm(gen_resample_norm, is_cond=False)
+        # else:
+        gen_data[mask] = gen_resample_norm
         
         # Update mask based on rejection criteria applied to new data
         mask = criteria(gen_data, *args)

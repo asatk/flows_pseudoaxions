@@ -4,18 +4,17 @@ from numpy import ndarray
 from typing import Self
 
 from .constants import DEFAULT_SEED, WHITEN_EPSILON
-from .pretrain.generation import CovModStrategy, NoneMod, sample_gaussian, DiagCov, RepeatStrategy
+from .pretrain._gaussian import CovModStrategy, NoneMod, sample_gaussian, DiagCov, RepeatStrategy
 from .utils import LOG_ERROR, print_msg
 
-from ._managers import DataManager
 
 # TODO move nsamp to gen method, not instantiation
 
 
-class Generator(DataManager, metaclass=abc.ABCMeta):
+class Generator(metaclass=abc.ABCMeta):
 
     def __init__(self, ndist: tuple[int], seed: int=DEFAULT_SEED, config: dict|None=None):
-        super().__init__()
+        # super().__init__()
         if config is None:
             self.ndist = ndist
             self.seed = seed
@@ -30,25 +29,6 @@ class Generator(DataManager, metaclass=abc.ABCMeta):
     def generate(self, nsamp: int=1e3):
         ...
 
-    # @property
-    # def has_generated(self):
-    #     return self._has_generated
-
-    def preproc(self, epsilon: float=WHITEN_EPSILON) -> tuple[ndarray, ndarray]:
-        if not self.has_generated:
-            print_msg("Data have not yet been generated. Run `generate()` " + \
-                      "this `Generator` instance before running `preproc()`.",
-                      level=LOG_ERROR)
-            return tuple()
-        return super().preproc(epsilon=epsilon)
-    
-    def recover(self) -> tuple[ndarray, ndarray]:
-        if not self.has_generated:
-            print_msg("Data have not yet been generated. Run `generate()` " + \
-                      "this `Generator` instance before running `recover()`.",
-                      level=LOG_ERROR)
-            return tuple()
-        return super().recover()
 
 
 class GaussGenerator(Generator, metaclass=abc.ABCMeta):

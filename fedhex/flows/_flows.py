@@ -71,12 +71,6 @@ class Flow(keras.Model):
         self._conditional = conditional
         self._bijector_name = bijector_name
 
-        self._data_mean = 0
-        self._data_std = 1
-        if conditional:
-            self._conditional_data_mean = 0
-            self._conditional_data_std = 1
-
     @property
     def num_flows(self) -> int:
         return self._num_flows
@@ -84,17 +78,6 @@ class Flow(keras.Model):
     @property
     def bijector_name(self) -> str:
         return self._bijector_name
-
-    def adapt(self, x):
-        if self._conditional:
-            if not isinstance(x, tuple(list, tuple)) or len(x) != 2:
-                return ValueError("Conditional flow must be provided `conditional_input`")
-            # x = tf.concat(x, axis=0)
-            x, c = x
-            self._conditional_data_mean = np.mean(c, axis=-1)
-            self._conditional_data_std = np.std(c, axis=-1)
-        self._data_mean = np.mean(x, axis=-1)
-        self._data_std = np.std(x, axis=-1)
 
     def sample(self,
                num_samples: int=None,
@@ -104,7 +87,6 @@ class Flow(keras.Model):
             if bool(num_samples) and num_samples != c.shape[0]:
                 return ValueError("`num_samples` differs from first dimension"\
                                   "of provided conditional data.")
-            c = (c - self._conditional_data_mean) / self._conditional_data_std
             bijector_kwargs = {
                 f"{self.bijector_name}_{i}": {"conditional_input": c}\
                     for i in range(self.num_flows)
@@ -112,10 +94,9 @@ class Flow(keras.Model):
         else:
             bijector_kwargs = {}
         
-        y = self._dist.sample(sample_shape=num_samples,
-                              seed=seed,
-                              bijector_kwargs=bijector_kwargs)
-        return y * self._data_std + self._data_mean
+        return self._dist.sample(sample_shape=num_samples,
+                                 seed=seed,
+                                 bijector_kwargs=bijector_kwargs)
         
     def call(self, x):
         bijector_kwargs = {}
@@ -123,12 +104,10 @@ class Flow(keras.Model):
             if not isinstance(x, (list, tuple)) or len(x) != 2:
                 return ValueError("Conditional flow must be provided `conditional_input`")
             x, c = x
-            c = (c - self._conditional_data_mean) / self._conditional_data_std
             bijector_kwargs = {
                 f"{self.bijector_name}_{i}": {"conditional_input": c}\
                     for i in range(self.num_flows)
             }
-        x = (x - self._data_mean) / self._data_std
         return self._dist.log_prob(x, bijector_kwargs=bijector_kwargs)
 
     def get_config(self):

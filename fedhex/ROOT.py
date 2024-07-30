@@ -14,8 +14,8 @@ import ROOT
 ROOT.EnableImplicitMT(numthreads=0)
 RDataFrame = ROOT.RDataFrame
 
-from ..utils import print_msg, LOG_WARN
-from ._data import threshold_data
+from .utils import print_msg, LOG_WARN
+from .utils._data import threshold_data
 
 
 def find_root(data_dir: str, max_depth: int=3):
